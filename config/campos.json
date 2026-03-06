@@ -1,0 +1,129 @@
+{
+  "campos": [
+    {
+      "clave": "n_fila",
+      "origen": null,
+      "destino": "N°"
+    },
+    {
+      "clave": "cedula",
+      "origen": "CEDULA",
+      "destino": "CEDULA"
+    },
+    {
+      "clave": "nombres_completos",
+      "origen": null,
+      "destino": "APELLIDOS Y NOMBRES"
+    },
+    {
+      "clave": "nac_calc",
+      "origen": null,
+      "destino": "NACIONALIDAD (V/E)"
+    },
+    {
+      "clave": "edad",
+      "origen": null,
+      "destino": "EDAD"
+    },
+    {
+      "clave": "f_nac",
+      "origen": "FECHA NAC.",
+      "destino": "FECHA DE NACIMIENTO"
+    },
+    {
+      "clave": "f_ingre",
+      "origen": "FECHA INGRESO",
+      "destino": "FECHA DE INGRESO"
+    },
+    {
+      "clave": "anos_servicio",
+      "origen": null,
+      "destino": "AÑOS DE SERVICIO"
+    },
+    {
+      "clave": "genero",
+      "origen": "SEXO",
+      "destino": "GENERO (M/F)"
+    },
+    {
+      "clave": "cuenta",
+      "origen": "CUENTA NOMINA",
+      "destino": "CUENTA BANCARIA"
+    },
+    {
+      "clave": "tipo_personal",
+      "origen": "TIPO EMPLEADO",
+      "destino": "TIPO DE PERSONAL"
+    },
+    {
+      "clave": "denom_cargo",
+      "origen": "DESC. CARGO",
+      "destino": "DENOMINACION DE CARGO"
+    },
+    {
+      "clave": "horario_laboral",
+      "origen": null,
+      "destino": "HORARIO LABORAL"
+    },
+    {
+      "clave": "carga_horaria",
+      "origen": "CARGA HORARIA",
+      "destino": "CARGA HORARIA"
+    },
+    {
+      "clave": "dependencia",
+      "origen": "NOMBRE CENTRO",
+      "destino": "DEPENDENCIA"
+    },
+    {
+      "clave": "estado_region",
+      "origen": null,
+      "destino": "ESTADO/REGION"
+    },
+    {
+      "clave": "monto_cesta",
+      "origen": null,
+      "destino": "MONTO Bs. 40$"
+    },
+    {
+      "clave": "observaciones",
+      "origen": null,
+      "destino": "OBSERVACIONES"
+    },
+    {
+      "clave": "largo_cuenta",
+      "origen": null,
+      "destino": "CANTIDAD DE DIGITO DE LA CUENTA"
+    },
+    {
+      "clave": "especialidad",
+      "origen": "ESPECIALIDAD MÉD 1",
+      "destino": "ESPECIALIDAD"
+    }
+  ],
+
+  "columnas_nombre": [
+    "1ER NOMBRE",
+    "2DO NOMBRE",
+    "1ER APELLIDO",
+    "2DO APELLIDO"
+  ],
+
+  "columnas_reglas": {
+    "sueldo_101": "101 SUELDO Y/O SALARIO",
+    "diferencia_117": "117 DIF. DE SUELDO Y/O SALARIO",
+    "descuento_faltas": "DESCUENTO POR FALTAS"
+  },
+
+  "horarios": {
+    "8": "8AM-4PM",
+    "6": "7AM-1PM",
+    "3": "7AM-10AM"
+  },
+
+  "valores_default": {
+    "horario": "POR DEFINIR",
+    "estado_region": "ARAGUA",
+    "plantilla_path": "template.xlsx"
+  }
+}
