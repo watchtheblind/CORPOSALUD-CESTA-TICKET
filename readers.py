@@ -70,35 +70,38 @@ class ExcelReader:
             return fila_datos[idx] if fila_datos[idx] is not None else default
         return default
 
+    def fila_tiene_cedula(self, fila_datos: list) -> bool:
+        """Verifica si la fila tiene cédula (criterio de parada)."""
+        return bool(self.valor_celda(fila_datos, 'CEDULA'))
+
     def fila_esta_activa(self, fila_datos: list) -> bool:
-        """Verifica si la fila tiene marcador 'SI' (empleado activo)."""
+        """Verifica si la fila tiene marcador 'SI' en cualquier celda."""
         return any(
             str(c).strip().upper() == 'SI'
             for c in fila_datos
             if c is not None
         )
 
-    def fila_tiene_cedula(self, fila_datos: list) -> bool:
-        """Verifica si la fila tiene cédula (criterio de parada)."""
-        return bool(self.valor_celda(fila_datos, 'CEDULA'))
+    def obtener_valor_cuenta_activa(self, fila_datos: list, columna: str) -> str:
+        """Devuelve el valor de CUENTA ACTIVA normalizado."""
+        valor = self.valor_celda(fila_datos, columna, '')
+        return str(valor).strip().upper()
 
     def cerrar(self):
         self.wb.close()
 
 
 class PlantillaReader:
-    """Lee la estructura de la plantilla destino y expone el workbook para escritura."""
+    """Lee la estructura de una hoja de la plantilla destino."""
 
-    def __init__(self, ruta: str, campos: list[CampoMapeo], filas_busqueda: int = 15):
-        self.wb = load_workbook(ruta)
-        self.ws = self.wb.active
+    def __init__(self, ws, campos: list[CampoMapeo], filas_busqueda: int = 15):
+        self.ws = ws
         self._indices: dict[str, int] = {}
         self._fila_datos: int = 9
         self._construir_indices(campos, filas_busqueda)
 
     def _construir_indices(self, campos: list[CampoMapeo], filas_busqueda: int):
-        """Mapea claves internas a columnas de la plantilla."""
-        # Invertimos: nombre_destino_limpio → clave_interna
+        """Mapea claves internas a columnas de la hoja."""
         destino_a_clave = {
             limpiar_texto(c.destino): c.clave
             for c in campos
@@ -115,7 +118,7 @@ class PlantillaReader:
             for i, val in enumerate(fila):
                 limpia = limpiar_texto(val)
                 if limpia in destino_a_clave:
-                    encontrados[destino_a_clave[limpia]] = i + 1  # 1-indexed para openpyxl
+                    encontrados[destino_a_clave[limpia]] = i + 1
 
             if encontrados:
                 self._indices = encontrados

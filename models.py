@@ -27,6 +27,13 @@ class Empleado:
     observaciones: str = ''
     largo_cuenta: Any = ''
     especialidad: str = ''
+    # --- Campos CMP ---
+    motivo_cmp: str = ''
+    fecha_cmp: Any = ''
+    # --- Campos Retroactivo ---
+    retroactivos: dict = field(default_factory=dict)  # {"01": 2120, "03": 2579}
+    total_retroactivo: Any = ''
+    motivo_retroactivo: str = ''
 
     def to_dict(self) -> dict:
         """Convierte a diccionario para escritura genérica."""

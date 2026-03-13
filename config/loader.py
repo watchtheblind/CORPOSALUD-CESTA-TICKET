@@ -10,8 +10,8 @@ from typing import Optional
 class CampoMapeo:
     """Un campo mapeado entre origen y destino."""
     clave: str
-    origen: Optional[str]   # None = no viene del libro carga
-    destino: Optional[str]  # None = no va a la plantilla
+    origen: Optional[str]
+    destino: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -26,8 +26,15 @@ class ColumnasReglas:
 class Configuracion:
     """Configuración completa del sistema, inmutable después de cargar."""
     campos: list[CampoMapeo]
+    campos_cmp: list[CampoMapeo]
+    campos_retroactivo: list[CampoMapeo]
     columnas_nombre: list[str]
     columnas_reglas: ColumnasReglas
+    columna_cuenta_activa: str
+    motivos_cmp: dict[str, str]
+    motivos_retroactivo: list[str]
+    meses_abreviados: dict[str, str]
+    ruta_montos_retroactivos: str
     horarios: dict[str, str]
     horario_default: str
     estado_region_default: str
@@ -35,11 +42,7 @@ class Configuracion:
 
 
 def cargar_configuracion(ruta: str = None) -> Configuracion:
-    """
-    Carga el JSON y devuelve un objeto Configuracion tipado.
-    
-    Si no se pasa ruta, busca config/campos.json relativo al proyecto.
-    """
+    """Carga el JSON y devuelve un objeto Configuracion tipado."""
     if ruta is None:
         ruta = Path(__file__).parent / 'campos.json'
 
@@ -53,27 +56,25 @@ def cargar_configuracion(ruta: str = None) -> Configuracion:
     with open(ruta, encoding='utf-8') as f:
         datos = json.load(f)
 
-    # Validación básica
     _validar_estructura(datos)
 
-    # Construir objetos tipados
-    campos = [
-        CampoMapeo(
-            clave=c['clave'],
-            origen=c.get('origen'),      # null en JSON → None en Python
-            destino=c.get('destino'),
-        )
-        for c in datos['campos']
-    ]
-
+    campos = _parsear_campos(datos['campos'])
+    campos_cmp = _parsear_campos(datos['campos_cmp'])
+    campos_retro = _parsear_campos(datos['campos_retroactivo'])
     reglas = ColumnasReglas(**datos['columnas_reglas'])
-
     defaults = datos['valores_default']
 
     return Configuracion(
         campos=campos,
+        campos_cmp=campos_cmp,
+        campos_retroactivo=campos_retro,
         columnas_nombre=datos['columnas_nombre'],
         columnas_reglas=reglas,
+        columna_cuenta_activa=datos['columna_cuenta_activa'],
+        motivos_cmp=datos['motivos_cmp'],
+        motivos_retroactivo=datos['motivos_retroactivo'],
+        meses_abreviados=datos['meses_abreviados'],
+        ruta_montos_retroactivos=datos['ruta_montos_retroactivos'],
         horarios=datos['horarios'],
         horario_default=defaults['horario'],
         estado_region_default=defaults['estado_region'],
@@ -81,22 +82,37 @@ def cargar_configuracion(ruta: str = None) -> Configuracion:
     )
 
 
+def _parsear_campos(lista: list[dict]) -> list[CampoMapeo]:
+    """Convierte lista de dicts en lista de CampoMapeo."""
+    return [
+        CampoMapeo(
+            clave=c['clave'],
+            origen=c.get('origen'),
+            destino=c.get('destino'),
+        )
+        for c in lista
+    ]
+
+
 def _validar_estructura(datos: dict):
     """Valida que el JSON tenga las claves obligatorias."""
     claves_requeridas = [
-        'campos', 'columnas_nombre', 'columnas_reglas',
+        'campos', 'campos_cmp', 'campos_retroactivo',
+        'columnas_nombre', 'columnas_reglas',
+        'columna_cuenta_activa', 'motivos_cmp',
+        'motivos_retroactivo', 'meses_abreviados',
+        'ruta_montos_retroactivos',
         'horarios', 'valores_default',
     ]
     faltantes = [k for k in claves_requeridas if k not in datos]
     if faltantes:
         raise ValueError(
-            f"El archivo de configuración está incompleto. "
-            f"Faltan las claves: {faltantes}"
+            f"Archivo de configuración incompleto. Faltan: {faltantes}"
         )
 
-    # Validar que cada campo tenga al menos 'clave'
-    for i, campo in enumerate(datos['campos']):
-        if 'clave' not in campo:
-            raise ValueError(
-                f"El campo #{i} en 'campos' no tiene 'clave' definida."
-            )
+    for seccion in ['campos', 'campos_cmp', 'campos_retroactivo']:
+        for i, campo in enumerate(datos[seccion]):
+            if 'clave' not in campo:
+                raise ValueError(
+                    f"El campo #{i} en '{seccion}' no tiene 'clave' definida."
+                )

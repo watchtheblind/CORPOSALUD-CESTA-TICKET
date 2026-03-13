@@ -19,6 +19,14 @@ def formula_largo_cuenta(col_cuenta: int, fila: int) -> str:
     return f'=LEN({letra}{fila})'
 
 
+def formula_suma_rango(columnas: list[int], fila: int) -> str:
+    """Genera fórmula de suma para columnas específicas (retroactivos)."""
+    if not columnas:
+        return 0
+    refs = [f'{get_column_letter(c)}{fila}' for c in columnas]
+    return f'={"+".join(refs)}'
+
+
 def _formula_datedif(col_indice: int, fila: int, fecha_corte: str) -> str:
     """Genera fórmula DATEDIF genérica."""
     letra = get_column_letter(col_indice)

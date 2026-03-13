@@ -1,106 +1,77 @@
 {
   "campos": [
-    {
-      "clave": "n_fila",
-      "origen": null,
-      "destino": "N°"
-    },
-    {
-      "clave": "cedula",
-      "origen": "CEDULA",
-      "destino": "CEDULA"
-    },
-    {
-      "clave": "nombres_completos",
-      "origen": null,
-      "destino": "APELLIDOS Y NOMBRES"
-    },
-    {
-      "clave": "nac_calc",
-      "origen": null,
-      "destino": "NACIONALIDAD (V/E)"
-    },
-    {
-      "clave": "edad",
-      "origen": null,
-      "destino": "EDAD"
-    },
-    {
-      "clave": "f_nac",
-      "origen": "FECHA NAC.",
-      "destino": "FECHA DE NACIMIENTO"
-    },
-    {
-      "clave": "f_ingre",
-      "origen": "FECHA INGRESO",
-      "destino": "FECHA DE INGRESO"
-    },
-    {
-      "clave": "anos_servicio",
-      "origen": null,
-      "destino": "AÑOS DE SERVICIO"
-    },
-    {
-      "clave": "genero",
-      "origen": "SEXO",
-      "destino": "GENERO (M/F)"
-    },
-    {
-      "clave": "cuenta",
-      "origen": "CUENTA NOMINA",
-      "destino": "CUENTA BANCARIA"
-    },
-    {
-      "clave": "tipo_personal",
-      "origen": "TIPO EMPLEADO",
-      "destino": "TIPO DE PERSONAL"
-    },
-    {
-      "clave": "denom_cargo",
-      "origen": "DESC. CARGO",
-      "destino": "DENOMINACION DE CARGO"
-    },
-    {
-      "clave": "horario_laboral",
-      "origen": null,
-      "destino": "HORARIO LABORAL"
-    },
-    {
-      "clave": "carga_horaria",
-      "origen": "CARGA HORARIA",
-      "destino": "CARGA HORARIA"
-    },
-    {
-      "clave": "dependencia",
-      "origen": "NOMBRE CENTRO",
-      "destino": "DEPENDENCIA"
-    },
-    {
-      "clave": "estado_region",
-      "origen": null,
-      "destino": "ESTADO/REGION"
-    },
-    {
-      "clave": "monto_cesta",
-      "origen": null,
-      "destino": "MONTO Bs. 40$"
-    },
-    {
-      "clave": "observaciones",
-      "origen": null,
-      "destino": "OBSERVACIONES"
-    },
-    {
-      "clave": "largo_cuenta",
-      "origen": null,
-      "destino": "CANTIDAD DE DIGITO DE LA CUENTA"
-    },
-    {
-      "clave": "especialidad",
-      "origen": "ESPECIALIDAD MÉD 1",
-      "destino": "ESPECIALIDAD"
-    }
+    {"clave": "n_fila", "origen": null, "destino": "N°"},
+    {"clave": "cedula", "origen": "CEDULA", "destino": "CEDULA"},
+    {"clave": "nombres_completos", "origen": null, "destino": "APELLIDOS Y NOMBRES"},
+    {"clave": "nac_calc", "origen": null, "destino": "NACIONALIDAD (V/E)"},
+    {"clave": "edad", "origen": null, "destino": "EDAD"},
+    {"clave": "f_nac", "origen": "FECHA NAC.", "destino": "FECHA DE NACIMIENTO"},
+    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "anos_servicio", "origen": null, "destino": "AÑOS DE SERVICIO"},
+    {"clave": "genero", "origen": "SEXO", "destino": "GENERO (M/F)"},
+    {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
+    {"clave": "tipo_personal", "origen": "TIPO EMPLEADO", "destino": "TIPO DE PERSONAL"},
+    {"clave": "denom_cargo", "origen": "DESC. CARGO", "destino": "DENOMINACION DE CARGO"},
+    {"clave": "horario_laboral", "origen": null, "destino": "HORARIO LABORAL"},
+    {"clave": "carga_horaria", "origen": "CARGA HORARIA", "destino": "CARGA HORARIA"},
+    {"clave": "dependencia", "origen": "NOMBRE CENTRO", "destino": "DEPENDENCIA"},
+    {"clave": "estado_region", "origen": null, "destino": "ESTADO/REGION"},
+    {"clave": "monto_cesta", "origen": null, "destino": "MONTO Bs. 40$"},
+    {"clave": "observaciones", "origen": null, "destino": "OBSERVACIONES"},
+    {"clave": "largo_cuenta", "origen": null, "destino": "CANTIDAD DE DIGITO DE LA CUENTA"},
+    {"clave": "especialidad", "origen": "ESPECIALIDAD MÉD 1", "destino": "ESPECIALIDAD"}
   ],
+
+  "campos_cmp": [
+    {"clave": "n_fila", "origen": null, "destino": "N°"},
+    {"clave": "nac_calc", "origen": null, "destino": "NACIONALIDAD (V/E)"},
+    {"clave": "cedula", "origen": "CEDULA", "destino": "CEDULA"},
+    {"clave": "nombres_completos", "origen": null, "destino": "APELLIDOS Y NOMBRES"},
+    {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
+    {"clave": "tipo_personal", "origen": "TIPO EMPLEADO", "destino": "TIPO DE PERSONAL"},
+    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "denom_cargo", "origen": "DESC. CARGO", "destino": "DENOMINACION DE CARGO"},
+    {"clave": "carga_horaria", "origen": "CARGA HORARIA", "destino": "CARGA HORARIA"},
+    {"clave": "horario_laboral", "origen": null, "destino": "HORARIO LABORAL"},
+    {"clave": "especialidad", "origen": "ESPECIALIDAD MÉD 1", "destino": "ESPECIALIDAD"},
+    {"clave": "dependencia", "origen": "NOMBRE CENTRO", "destino": "DEPENDENCIA"},
+    {"clave": "estado_region", "origen": null, "destino": "ESTADO /REGION"},
+    {"clave": "motivo_cmp", "origen": null, "destino": "MOTIVO DEL CAMBIO DE MODALIDAD DE PAGO"},
+    {"clave": "fecha_cmp", "origen": "FECHA INACTIVACIÓN", "destino": "FECHA DESDE CUANDO ESTAN EN CAMBIO DE MODALIDAD DE PAGO"},
+    {"clave": "largo_cuenta", "origen": null, "destino": "CANTIDAD DE DIGITO DE LA CUENTA"}
+  ],
+    "campos_retroactivo": [
+    {"clave": "n_fila", "origen": null, "destino": "N°"},
+    {"clave": "nac_calc", "origen": null, "destino": "NACIONALIDAD (V/E)"},
+    {"clave": "cedula", "origen": "CEDULA", "destino": "CEDULA"},
+    {"clave": "nombres_completos", "origen": null, "destino": "APELLIDOS Y NOMBRES"},
+    {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
+    {"clave": "tipo_personal", "origen": "TIPO EMPLEADO", "destino": "TIPO DE PERSONAL"},
+    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "denom_cargo", "origen": "DESC. CARGO", "destino": "DENOMINACION DE CARGO"},
+    {"clave": "carga_horaria", "origen": "CARGA HORARIA", "destino": "CARGA HORARIA"},
+    {"clave": "horario_laboral", "origen": null, "destino": "HORARIO LABORAL"},
+    {"clave": "especialidad", "origen": "ESPECIALIDAD MÉD 1", "destino": "ESPECIALIDAD"},
+    {"clave": "dependencia", "origen": "NOMBRE CENTRO", "destino": "DEPENDENCIA"},
+    {"clave": "estado_region", "origen": null, "destino": "ESTADO /REGION"},
+    {"clave": "total_retroactivo", "origen": null, "destino": "TOTAL GENERAL EN Bs A PAGAR EN TICKET"},
+    {"clave": "motivo_retroactivo", "origen": null, "destino": "MOTIVO DEL RETROACTIVO"},
+    {"clave": "largo_cuenta", "origen": null, "destino": "CANTIDAD DE DIGITO DE LA CUENTA"}
+  ],
+
+  "motivos_retroactivo": [
+    "DEUDA PENDIENTE POR REACTIVACIÓN",
+    "DEUDA PENDIENTE POR ERROR DE CEDULA",
+    "DEUDA PENDIENTE POR ERROR DE CUENTA BANCARIA"
+  ],
+
+  "meses_abreviados": {
+    "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+    "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+    "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
+  },
+
+  "ruta_montos_retroactivos": "config/montos_retroactivos.json",
 
   "columnas_nombre": [
     "1ER NOMBRE",
@@ -113,6 +84,13 @@
     "sueldo_101": "101 SUELDO Y/O SALARIO",
     "diferencia_117": "117 DIF. DE SUELDO Y/O SALARIO",
     "descuento_faltas": "DESCUENTO POR FALTAS"
+  },
+
+  "columna_cuenta_activa": "CUENTA ACTIVA",
+
+  "motivos_cmp": {
+    "default": "AUSENCIA LABORAL",
+    "ALTO NIVEL FIJO": "CARGO COMO OBRERO/CONTRATADO"
   },
 
   "horarios": {
