@@ -107,10 +107,15 @@ def procesar_cmp(reader, ws_cmp):
         fila = reader.leer_fila(r, COLUMNAS_LECTURA_MAX)
 
         if not reader.fila_tiene_cedula(fila):
-            break
+            continue # <-- Cambiado de break a continue para no rendirse si hay un hueco
 
         if reader.cuenta_esta_activa(fila, CONFIG.columna_cuenta_activa):
-            continue
+            # Si entramos aquí, es un empleado activo normal. 
+            # Lo saltamos porque esta función SOLO es para los que NO son activos.
+            continue 
+
+        # Si el programa llega a este punto, significa que encontró un CMP
+        print(f"DEBUG: ¡Encontré un CMP! Cédula: {reader.valor_celda(fila, 'CEDULA')}")
 
         fila_destino = plantilla.fila_inicio_datos + procesados
         emp = procesador.procesar(fila, procesados + 1, fila_destino)
@@ -190,7 +195,7 @@ def main():
 
         # 4. Abrir plantilla
         wb_plantilla = load_workbook(CONFIG.plantilla_path)
-        ws_activos = wb_plantilla.active
+        ws_activos = wb_plantilla['ACTIVOS']
         ws_cmp = wb_plantilla['CMP']
 
         # 5. Procesar activos y CMP

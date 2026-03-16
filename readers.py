@@ -87,6 +87,12 @@ class ExcelReader:
         valor = self.valor_celda(fila_datos, columna, '')
         return str(valor).strip().upper()
 
+    def cuenta_esta_activa(self, fila_datos: list, columna: str) -> bool:
+        """Verifica si la columna específica de cuenta tiene un 'SI'."""
+        # Reutilizamos el método que ya tienes para obtener el valor limpio
+        valor = self.obtener_valor_cuenta_activa(fila_datos, columna)
+        return valor == 'SI'
+
     def cerrar(self):
         self.wb.close()
 
