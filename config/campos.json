@@ -99,9 +99,23 @@
     "3": "7AM-10AM"
   },
 
-  "valores_default": {
+"valores_default": {
+    "motivo_cmp_default": "AUSENCIA LABORAL",
+    "umbral_extranjero": 80000000,
+    "excepcion_cedula_e": "604262",
     "horario": "POR DEFINIR",
     "estado_region": "ARAGUA",
     "plantilla_path": "template.xlsx"
-  }
+  },
+  "nombres_hojas": {
+    "activos": "ACTIVOS",
+    "cmp": "CMP",
+    "retroactivos": "RETROACTIVOS"
+  },
+  "columnas_fecha": [
+    "FECHA DESDE CUANDO ESTAN EN CAMBIO DE MODALIDAD DE PAGO",
+    "FECHA DE INGRESO",
+    "FECHA DE EGRESO"
+  ],
+  "columna_cuenta_bancaria": "CUENTA BANCARIA"
 }

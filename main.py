@@ -8,7 +8,7 @@ from datetime import datetime
 from config import CONFIG
 from readers import ExcelReader, PlantillaReader
 from writers import PlantillaWriter
-from processors import ProcesadorEmpleado
+from processors_activos import ProcesadorEmpleado
 from processors_cmp import ProcesadorCMP
 from processors_retro import ProcesadorRetroactivo
 from montos import GestorMontos
@@ -195,8 +195,8 @@ def main():
 
         # 4. Abrir plantilla
         wb_plantilla = load_workbook(CONFIG.plantilla_path)
-        ws_activos = wb_plantilla['ACTIVOS']
-        ws_cmp = wb_plantilla['CMP']
+        ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
+        ws_cmp = wb_plantilla[CONFIG.nombres_hojas['cmp']]
 
         # 5. Procesar activos y CMP
         fecha_corte = calcular_fecha_corte()
@@ -226,7 +226,7 @@ def main():
             )
 
             if montos_ok:
-                ws_retro = wb_plantilla['RETROACTIVOS']
+                ws_retro = wb_plantilla[CONFIG.nombres_hojas['retroactivos']]
                 n_retro, no_encontrados = procesar_retroactivos(
                     reader, ws_retro, dialogo_retro.resultado, gestor, anio_actual,
                 )

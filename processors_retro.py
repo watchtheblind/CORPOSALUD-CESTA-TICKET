@@ -6,9 +6,9 @@ from config import CONFIG
 from formulas import formula_largo_cuenta
 from montos import GestorMontos
 from ui_retroactivos import EntradaRetroactivo
+from base_processor import ProcesadorBase
 
-
-class ProcesadorRetroactivo:
+class ProcesadorRetroactivo(ProcesadorBase):
     """Transforma datos de activos + entrada de retroactivo en Empleado."""
 
     def __init__(self, reader: ExcelReader, idx_plantilla: dict, gestor_montos: GestorMontos):
@@ -40,9 +40,11 @@ class ProcesadorRetroactivo:
         anio: str,
     ) -> Empleado:
         """Pipeline: extracción → transformaciones → montos retroactivos."""
-        emp = self._extraer_campos_directos(fila_datos)
+        emp = self._extraer_campos_directos(fila_datos, self.cfg.campos_retroactivo)
         emp.n_fila = n_item
-
+        cuenta_cruda = self.reader.valor_celda(fila_datos, self.cfg.columna_cuenta_bancaria)
+        cuenta_limpia = self.limpiar_cuenta_bancaria(cuenta_cruda)
+        emp.cuenta_bancaria = cuenta_limpia
         self._calcular_nombre(emp, fila_datos)
         self._calcular_nacionalidad(emp)
         self._calcular_horario(emp)
@@ -55,39 +57,6 @@ class ProcesadorRetroactivo:
 
         return emp
 
-    def _extraer_campos_directos(self, fila_datos: list) -> Empleado:
-        """Extrae campos con mapeo directo desde el libro carga."""
-        emp = Empleado()
-        for campo in self.cfg.campos_retroactivo:
-            if campo.origen is not None:
-                valor = self.reader.valor_celda(fila_datos, campo.origen, '')
-                setattr(emp, campo.clave, valor)
-        return emp
-
-    def _calcular_nombre(self, emp: Empleado, fila_datos: list):
-        partes = []
-        for col in self.cfg.columnas_nombre:
-            valor = self.reader.valor_celda(fila_datos, col)
-            if valor:
-                partes.append(str(valor).strip())
-        emp.nombres_completos = ' '.join(partes).upper()
-
-    def _calcular_nacionalidad(self, emp: Empleado):
-        ced = str(emp.cedula).strip()
-        emp.nac_calc = 'E' if ced.startswith('8') or ced == '604262' else 'V'
-
-    def _calcular_horario(self, emp: Empleado):
-        carga = str(emp.carga_horaria).strip()
-        for clave, horario in self.cfg.horarios.items():
-            if clave in carga:
-                emp.horario_laboral = horario
-                return
-        emp.horario_laboral = self.cfg.horario_default
-
-    def _calcular_especialidad(self, emp: Empleado, fila_datos: list):
-        valor = self.reader.valor_celda(fila_datos, 'ESPECIALIDAD MÉD 1')
-        emp.especialidad = valor if valor else ''
-
     def _asignar_retroactivos(self, emp: Empleado, entrada: EntradaRetroactivo, anio: str):
         """Asigna los montos del retroactivo según los meses seleccionados."""
         for mes in entrada.meses:
@@ -96,6 +65,4 @@ class ProcesadorRetroactivo:
                 emp.retroactivos[mes] = monto
 
     def _inyectar_formulas(self, emp: Empleado, fila_excel: int):
-        """Genera fórmula de largo de cuenta. El total lo calcula el writer."""
-        col_cuenta = self.idx_plantilla.get('cuenta', 1)
-        emp.largo_cuenta = formula_largo_cuenta(col_cuenta, fila_excel)
+        self._inyectar_formulas_comunes(emp, fila_excel)

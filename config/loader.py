@@ -28,8 +28,13 @@ class Configuracion:
     campos: list[CampoMapeo]
     campos_cmp: list[CampoMapeo]
     campos_retroactivo: list[CampoMapeo]
+    columnas_fecha: list[str]   
+    columna_cuenta_bancaria: str  
+    nombres_hojas: dict[str, str]
     columnas_nombre: list[str]
     columnas_reglas: ColumnasReglas
+    umbral_extranjero: int          
+    excepcion_cedula_e: str
     columna_cuenta_activa: str
     motivos_cmp: dict[str, str]
     motivos_retroactivo: list[str]
@@ -62,14 +67,24 @@ def cargar_configuracion(ruta: str = None) -> Configuracion:
     campos_cmp = _parsear_campos(datos['campos_cmp'])
     campos_retro = _parsear_campos(datos['campos_retroactivo'])
     reglas = ColumnasReglas(**datos['columnas_reglas'])
+    hojas = datos.get('nombres_hojas', {
+        "activos": "ACTIVOS", 
+        "cmp": "CMP", 
+        "retroactivos": "RETROACTIVOS"
+    })
     defaults = datos['valores_default']
 
     return Configuracion(
         campos=campos,
         campos_cmp=campos_cmp,
         campos_retroactivo=campos_retro,
+        columnas_fecha=datos['columnas_fecha'],           # <-- FALTABA ESTE
+        columna_cuenta_bancaria=datos['columna_cuenta_bancaria'], # <-- FALTABA ESTE
+        nombres_hojas=hojas,
         columnas_nombre=datos['columnas_nombre'],
         columnas_reglas=reglas,
+        umbral_extranjero=defaults['umbral_extranjero'],
+        excepcion_cedula_e=defaults['excepcion_cedula_e'],
         columna_cuenta_activa=datos['columna_cuenta_activa'],
         motivos_cmp=datos['motivos_cmp'],
         motivos_retroactivo=datos['motivos_retroactivo'],
@@ -78,7 +93,7 @@ def cargar_configuracion(ruta: str = None) -> Configuracion:
         horarios=datos['horarios'],
         horario_default=defaults['horario'],
         estado_region_default=defaults['estado_region'],
-        plantilla_path=defaults['plantilla_path'],
+        plantilla_path=defaults['plantilla_path']
     )
 
 
@@ -100,6 +115,8 @@ def _validar_estructura(datos: dict):
         'campos', 'campos_cmp', 'campos_retroactivo',
         'columnas_nombre', 'columnas_reglas',
         'columna_cuenta_activa', 'motivos_cmp',
+        'columnas_fecha',        
+        'columna_cuenta_bancaria',
         'motivos_retroactivo', 'meses_abreviados',
         'ruta_montos_retroactivos',
         'horarios', 'valores_default',
