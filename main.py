@@ -64,65 +64,80 @@ def obtener_monto_cesta(ui, gestor):
         return monto_nuevo
 
 
-def procesar_activos(reader, ws_activos, fecha_corte, monto):
-    plantilla = PlantillaReader(ws_activos, CONFIG.campos)
-    writer = PlantillaWriter(ws_activos, plantilla.indices)
-    procesador = ProcesadorEmpleado(
-        reader=reader,
-        idx_plantilla=plantilla.indices,
-        monto_base=monto,
+def ejecutar_pipeline(reader, ws, campos_cfg, ClaseProcesador, filtro_fn, **kwargs):
+    """
+    Orquestador genérico para procesar cualquier pestaña.
+    """
+    # Sacamos el iterable de kwargs para que no ensucie la instancia del procesador
+    iterable = kwargs.pop('iterable', range(reader.fila_inicio_datos, reader.total_filas + 1))
+    
+    plantilla = PlantillaReader(ws, campos_cfg)
+    writer = PlantillaWriter(ws, plantilla.indices)
+    
+    # IMPORTANTE: Instanciamos el procesador con los kwargs que SI necesita
+    procesador = ClaseProcesador(
+        reader=reader, 
+        idx_plantilla=plantilla.indices, 
+        **kwargs
     )
 
     procesados = 0
-    for r in range(reader.fila_inicio_datos, reader.total_filas + 1):
-        fila = reader.leer_fila(r, COLUMNAS_LECTURA_MAX)
+    no_encontrados = [] # Para el caso de retroactivos
 
-        if not reader.fila_tiene_cedula(fila):
-            break
+    for item in iterable:
+        if isinstance(item, int): 
+            fila_datos = reader.leer_fila(item, COLUMNAS_LECTURA_MAX)
+        else: 
+            fila_datos = procesador.buscar_fila_por_cedula(item.cedula, COLUMNAS_LECTURA_MAX)
 
-        if not reader.cuenta_esta_activa(fila, CONFIG.columna_cuenta_activa):
+        if fila_datos is None:
+            if not isinstance(item, int): no_encontrados.append(item.cedula)
             continue
-
-        if not reader.fila_esta_activa(fila):
+            
+        if not reader.fila_tiene_cedula(fila_datos):
+            continue
+            
+        if filtro_fn and not filtro_fn(fila_datos, reader):
             continue
 
         fila_destino = plantilla.fila_inicio_datos + procesados
-        emp = procesador.procesar(fila, procesados + 1, fila_destino, fecha_corte)
-        writer.escribir_empleado(emp, fila_destino)
+        
+        # Lógica de procesamiento según la clase
+        if ClaseProcesador == ProcesadorRetroactivo:
+            # Para retroactivos pasamos el objeto 'item' (que es la Entrada)
+            emp = procesador.procesar(fila_datos, item, procesados + 1, fila_destino, kwargs.get('anio'))
+            writer.escribir_empleado(emp, fila_destino)
+            writer.escribir_retroactivos(emp, fila_destino, CONFIG.meses_abreviados, kwargs.get('anio'))
+        else:
+            # PARA ACTIVOS Y CMP: 
+            # Ya no pasamos *extra_args porque el procesador ya tiene la fecha en su 'self'
+            emp = procesador.procesar(fila_datos, procesados + 1, fila_destino)
+            writer.escribir_empleado(emp, fila_destino)
+        
         procesados += 1
 
+    # Si es retroactivo, devolvemos la tupla que espera el main
+    if ClaseProcesador == ProcesadorRetroactivo:
+        return procesados, no_encontrados
+    
     return procesados
 
+def procesar_activos(reader, ws_activos, fecha_corte, monto):
+    def filtro(fila, rdr): 
+        return rdr.cuenta_esta_activa(fila, CONFIG.columna_cuenta_activa) and rdr.fila_esta_activa(fila)
+    
+    return ejecutar_pipeline(reader, ws_activos, CONFIG.campos, ProcesadorEmpleado, filtro, 
+                             monto_base=monto, fecha_corte=fecha_corte)
 
 def procesar_cmp(reader, ws_cmp):
-    plantilla = PlantillaReader(ws_cmp, CONFIG.campos_cmp)
-    writer = PlantillaWriter(ws_cmp, plantilla.indices)
-    procesador = ProcesadorCMP(
-        reader=reader,
-        idx_plantilla=plantilla.indices,
-    )
+    def filtro(fila, rdr): 
+        return not rdr.cuenta_esta_activa(fila, CONFIG.columna_cuenta_activa)
+    
+    return ejecutar_pipeline(reader, ws_cmp, CONFIG.campos_cmp, ProcesadorCMP, filtro)
 
-    procesados = 0
-    for r in range(reader.fila_inicio_datos, reader.total_filas + 1):
-        fila = reader.leer_fila(r, COLUMNAS_LECTURA_MAX)
-
-        if not reader.fila_tiene_cedula(fila):
-            continue # <-- Cambiado de break a continue para no rendirse si hay un hueco
-
-        if reader.cuenta_esta_activa(fila, CONFIG.columna_cuenta_activa):
-            # Si entramos aquí, es un empleado activo normal. 
-            # Lo saltamos porque esta función SOLO es para los que NO son activos.
-            continue 
-
-        # Si el programa llega a este punto, significa que encontró un CMP
-        print(f"DEBUG: ¡Encontré un CMP! Cédula: {reader.valor_celda(fila, 'CEDULA')}")
-
-        fila_destino = plantilla.fila_inicio_datos + procesados
-        emp = procesador.procesar(fila, procesados + 1, fila_destino)
-        writer.escribir_empleado(emp, fila_destino)
-        procesados += 1
-
-    return procesados
+def procesar_retroactivos(reader, ws_retro, entradas, gestor, anio):
+    return ejecutar_pipeline(reader, ws_retro, CONFIG.campos_retroactivo, ProcesadorRetroactivo, None, 
+                             gestor_montos=gestor, anio=anio, iterable=entradas)
 
 
 def verificar_montos_retroactivos(root, gestor, anio, meses_necesarios):
@@ -143,116 +158,88 @@ def verificar_montos_retroactivos(root, gestor, anio, meses_necesarios):
 
     return True
 
+def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
+    """Encapsula toda la validación y proceso de retroactivos."""
+    anio_actual, _ = gestor.obtener_mes_actual()
+    dialogo = DialogoRetroactivos(ui.root, CONFIG.meses_abreviados, CONFIG.motivos_retroactivo, anio_actual)
 
-def procesar_retroactivos(reader, ws_retro, entradas, gestor, anio):
-    plantilla = PlantillaReader(ws_retro, CONFIG.campos_retroactivo)
-    writer = PlantillaWriter(ws_retro, plantilla.indices)
-    procesador = ProcesadorRetroactivo(
-        reader=reader,
-        idx_plantilla=plantilla.indices,
-        gestor_montos=gestor,
+    if dialogo.cancelado or not dialogo.resultado:
+        return 0, []
+
+    todos_meses = sorted({m for r in dialogo.resultado for m in r.meses})
+    
+    if verificar_montos_retroactivos(ui.root, gestor, anio_actual, todos_meses):
+        ws_retro = wb_plantilla[CONFIG.nombres_hojas['retroactivos']]
+        return procesar_retroactivos(reader, ws_retro, dialogo.resultado, gestor, anio_actual)
+    
+    return 0, []
+
+def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados):
+    """Cierra recursos, guarda el Excel y muestra el resumen al usuario."""
+    
+    # 1. Liberar el archivo de carga
+    reader.cerrar()
+    
+    # 2. Generar nombre dinámico (ej: Carga_2024_03_24_1430.xlsx)
+    nombre_salida = PlantillaWriter.generar_nombre_salida()
+    wb_plantilla.save(nombre_salida)
+
+    # 3. Construir el mensaje de éxito
+    resumen = (
+        f"📊 PROCESO FINALIZADO\n"
+        f"{'-'*30}\n"
+        f"✅ Activos: {n_activos}\n"
+        f"✅ CMP: {n_cmp}\n"
+        f"✅ Retroactivos: {n_retro}\n"
+        f"{'-'*30}\n"
+        f"Total procesados: {n_activos + n_cmp + n_retro}"
     )
 
-    procesados = 0
-    no_encontrados = []
+    if no_encontrados:
+        resumen += f"\n\n⚠️ Cédulas no encontradas en Retroactivos:\n" + "\n".join(no_encontrados)
 
-    for entrada in entradas:
-        fila_datos = procesador.buscar_fila_por_cedula(entrada.cedula, COLUMNAS_LECTURA_MAX)
-
-        if fila_datos is None:
-            no_encontrados.append(entrada.cedula)
-            continue
-
-        fila_destino = plantilla.fila_inicio_datos + procesados
-        emp = procesador.procesar(
-            fila_datos, entrada, procesados + 1, fila_destino, anio,
-        )
-
-        writer.escribir_empleado(emp, fila_destino)
-        writer.escribir_retroactivos(emp, fila_destino, CONFIG.meses_abreviados, anio)
-        procesados += 1
-
-    return procesados, no_encontrados
-
+    # 4. Feedback visual y apertura de archivo
+    ui.mostrar_exito_detallado(resumen)
+    os.startfile(nombre_salida)
 
 def main():
     ui = DialogoUI()
-
+    flags = {
+        'procesar_activos': True,
+        'procesar_cmp': True,
+        'procesar_retroactivos': True
+    }
     try:
-        # 1. Obtener monto del mes (verifica JSON, pregunta si cambiar, o pide nuevo)
+        # Inicialización
         gestor = GestorMontos(CONFIG.ruta_montos_retroactivos)
         monto = obtener_monto_cesta(ui, gestor)
-        if monto is None:
-            return
-
-        # 2. Pedir solo el archivo de carga (el monto ya lo tenemos)
         ruta = ui.solicitar_archivo()
-        if ruta is None:
-            return
+        
+        if not monto or not ruta: return
 
-        # 3. Abrir libro de carga
+        # Carga de recursos
         reader = ExcelReader(ruta)
-
-        # 4. Abrir plantilla
         wb_plantilla = load_workbook(CONFIG.plantilla_path)
-        ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
-        ws_cmp = wb_plantilla[CONFIG.nombres_hojas['cmp']]
-
-        # 5. Procesar activos y CMP
         fecha_corte = calcular_fecha_corte()
-        n_activos = procesar_activos(reader, ws_activos, fecha_corte, monto)
-        n_cmp = procesar_cmp(reader, ws_cmp)
 
-        # 6. Retroactivos (con opción de omitir)
-        anio_actual, _ = gestor.obtener_mes_actual()
-
-        dialogo_retro = DialogoRetroactivos(
-            ui.root,
-            CONFIG.meses_abreviados,
-            CONFIG.motivos_retroactivo,
-            anio_actual,
-        )
-
+        # Ejecución
+        n_activos = 0
+        if flags['procesar_activos']:
+            n_activos = procesar_activos(reader, ws_activos, fecha_corte, monto)
+        n_cmp = 0
+        if flags['procesar_cmp']:
+            n_cmp = procesar_cmp(reader, ws_cmp)
+        # 6. Retroactivos condicionales
         n_retro = 0
         no_encontrados = []
+        if flags['procesar_retroactivos']:
+            n_retro, no_encontrados = coordinar_retroactivos(ui, reader, wb_plantilla, gestor)
 
-        if not dialogo_retro.cancelado and dialogo_retro.resultado:
-            todos_meses = set()
-            for r in dialogo_retro.resultado:
-                todos_meses.update(r.meses)
-
-            montos_ok = verificar_montos_retroactivos(
-                ui.root, gestor, anio_actual, sorted(todos_meses)
-            )
-
-            if montos_ok:
-                ws_retro = wb_plantilla[CONFIG.nombres_hojas['retroactivos']]
-                n_retro, no_encontrados = procesar_retroactivos(
-                    reader, ws_retro, dialogo_retro.resultado, gestor, anio_actual,
-                )
-
-        # 7. Guardar y mostrar resultado
-        reader.cerrar()
-        nombre_salida = PlantillaWriter.generar_nombre_salida()
-        wb_plantilla.save(nombre_salida)
-
-        resumen = (
-            f"Activos: {n_activos} registros\n"
-            f"CMP: {n_cmp} registros\n"
-            f"Retroactivos: {n_retro} registros"
-        )
-
-        if no_encontrados:
-            resumen += f"\n\n⚠️ Cédulas no encontradas:\n" + "\n".join(no_encontrados)
-
-        resumen += f"\n\nTotal: {n_activos + n_cmp + n_retro}"
-
-        ui.mostrar_exito_detallado(resumen)
-        os.startfile(nombre_salida)
+        # Cierre y Salida
+        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados)
 
     except Exception as e:
-        ui.mostrar_error(str(e))
-
+        ui.mostrar_error(f"Error crítico: {e}")
     finally:
         ui.cerrar()
 

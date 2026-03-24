@@ -1,27 +1,48 @@
 # Archivo: base_processor.py
 from models import Empleado
 from formulas import formula_largo_cuenta
+from datetime import datetime
+
 class ProcesadorBase:
+    def __init__(self, reader, config, idx_plantilla):
+        """Constructor base que reciben todos los hijos."""
+        self.reader = reader
+        self.cfg = config
+        self.idx_plantilla = idx_plantilla
 
     def _pre_procesar_comun(self, emp, fila_datos, campos_mapeo):
-        """Ejecuta todas las limpiezas y cálculos básicos que comparten todos los procesadores."""
-        
-        # 1. Cuenta Bancaria (Busca el origen dinámicamente en el JSON)
-        col_cuenta = next((c.origen for c in campos_mapeo if c.clave == "cuenta"), None)
-        if col_cuenta:
-            valor_cuenta = self.reader.valor_celda(fila_datos, col_cuenta)
-            emp.cuenta = self.limpiar_cuenta_bancaria(valor_cuenta)
+            """Ejecuta limpiezas y cálculos básicos. Soporta tanto objetos como diccionarios."""
+            
+            # 1. Buscar la columna de la cuenta de forma segura
+            col_cuenta = None
+            for c in campos_mapeo:
+                # Si 'c' es un objeto (tiene atributo 'clave')
+                if hasattr(c, 'clave') and c.clave == "cuenta":
+                    col_cuenta = c.origen
+                    break
+                # Si 'c' es un diccionario (tiene la llave 'clave')
+                elif isinstance(c, dict) and c.get('clave') == "cuenta":
+                    col_cuenta = c.get('origen')
+                    break
 
-        # 2. Pipeline de cálculos básicos (Pasando el objeto emp completo)
-        self._calcular_nombre(emp, fila_datos)
-        emp.nac_calc = self._calcular_nacionalidad(emp.cedula)
-        self._calcular_horario(emp)
-        self._calcular_especialidad(emp, fila_datos)
+            # Si encontramos la columna, leemos y limpiamos
+            if col_cuenta is not None:
+                valor_cuenta = self.reader.valor_celda(fila_datos, col_cuenta)
+                emp.cuenta = self.limpiar_cuenta_bancaria(valor_cuenta)
+
+            # 2. Pipeline de cálculos básicos
+            self._calcular_nombre(emp, fila_datos)
+            
+            # Calculamos nacionalidad (asegurándonos de tener la cédula)
+            if hasattr(emp, 'cedula'):
+                emp.nac_calc = self._calcular_nacionalidad(emp.cedula)
+                
+            self._calcular_horario(emp)
+            self._calcular_especialidad(emp, fila_datos)
+            
+            # 3. Valor por defecto desde la configuración
+            emp.estado_region = self.cfg.estado_region_default
         
-        
-        # 3. Valor por defecto
-        emp.estado_region = self.cfg.estado_region_default
-    
     def limpiar_cuenta_bancaria(self, valor) -> str:
         """
         Elimina comillas simples, dobles y espacios de los números de cuenta.

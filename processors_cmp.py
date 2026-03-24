@@ -10,6 +10,7 @@ class ProcesadorCMP(ProcesadorBase):
     """Transforma una fila del libro carga en un Empleado para la pestaña CMP."""
 
     def __init__(self, reader: ExcelReader, idx_plantilla: dict):
+        super().__init__(reader, CONFIG, idx_plantilla)
         self.reader = reader
         self.idx_plantilla = idx_plantilla
         self.cfg = CONFIG

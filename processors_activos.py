@@ -8,24 +8,28 @@ from rules import REGLAS_REGISTRADAS
 from base_processor import ProcesadorBase
 
 class ProcesadorEmpleado(ProcesadorBase):
-    def __init__(self, reader: ExcelReader, idx_plantilla: dict, monto_base: float):
+# Agregamos fecha_corte al final de los argumentos
+    def __init__(self, reader: ExcelReader, idx_plantilla: dict, monto_base: float, fecha_corte=None): 
+        super().__init__(reader, CONFIG, idx_plantilla)
         self.reader = reader
         self.idx_plantilla = idx_plantilla
         self.monto_base = monto_base
-        self.cfg = CONFIG  # Configuración cargada del JSON
-        
-    def procesar(self, fila_datos: list, n_item: int, fila_excel: int, fecha_corte: str) -> Empleado:
-        emp = self._extraer_campos_directos(fila_datos, self.cfg.campos)
-        emp.n_fila = n_item
-        emp.monto_cesta = self.monto_base
+        self.fecha_corte = fecha_corte # <--- La guardamos aquí
+        self.cfg = CONFIG 
 
-        # Llamamos al método maestro del padre
-        self._pre_procesar_comun(emp, fila_datos, self.cfg.campos)
+    def procesar(self, fila_datos: list, n_item: int, fila_excel: int) -> Empleado:
+            # CORREGIDO: Primero fila_datos, luego los campos
+            emp = self._extraer_campos_directos(fila_datos, self.cfg.campos) 
+            
+            emp.n_fila = n_item
+            emp.monto_cesta = self.monto_base
 
-        # Solo lo específico de Activos
-        self._inyectar_formulas(emp, fila_excel, fecha_corte)
-        self._aplicar_reglas(emp, fila_datos)
-        return emp
+            # Aquí también asegúrate que sea el orden correcto
+            self._pre_procesar_comun(emp, fila_datos, self.cfg.campos)
+
+            self._inyectar_formulas(emp, fila_excel, self.fecha_corte)
+            self._aplicar_reglas(emp, fila_datos)
+            return emp
 
     def _inyectar_formulas(self, emp: Empleado, fila_excel: int, fecha_corte: str):
         # 1. Ejecutamos la lógica común (largo de cuenta)

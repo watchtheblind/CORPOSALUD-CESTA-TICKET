@@ -11,10 +11,12 @@ from base_processor import ProcesadorBase
 class ProcesadorRetroactivo(ProcesadorBase):
     """Transforma datos de activos + entrada de retroactivo en Empleado."""
 
-    def __init__(self, reader: ExcelReader, idx_plantilla: dict, gestor_montos: GestorMontos):
+    def __init__(self, reader: ExcelReader, idx_plantilla: dict, gestor_montos: GestorMontos, anio=None, **kwargs):        
+        super().__init__(reader, CONFIG, idx_plantilla)
         self.reader = reader
         self.idx_plantilla = idx_plantilla
         self.gestor = gestor_montos
+        self.anio = anio
         self.cfg = CONFIG
 
     def buscar_fila_por_cedula(self, cedula: str, max_columnas: int = 150) -> list | None:
