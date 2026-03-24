@@ -13,30 +13,17 @@ class ProcesadorEmpleado(ProcesadorBase):
         self.idx_plantilla = idx_plantilla
         self.monto_base = monto_base
         self.cfg = CONFIG  # Configuración cargada del JSON
-
-    def procesar(
-        self, fila_datos: list, n_item: int, fila_excel: int, fecha_corte: str
-    ) -> Empleado:
+        
+    def procesar(self, fila_datos: list, n_item: int, fila_excel: int, fecha_corte: str) -> Empleado:
         emp = self._extraer_campos_directos(fila_datos, self.cfg.campos)
         emp.n_fila = n_item
         emp.monto_cesta = self.monto_base
 
-        # 1. Obtenemos el valor del Excel (que trae las comillas '')
-        cuenta_cruda = self.reader.valor_celda(fila_datos, 'CUENTA BANCARIA')
-        
-        # 2. Lo pasamos por el limpiador del padre y lo asignamos
-        emp.cuenta_bancaria = self.limpiar_cuenta_bancaria(cuenta_cruda)
-        # --- AQUÍ ES DONDE USAS LAS VARIABLES LIMPIAS ---
-        # Asignamos los valores procesados a los atributos del objeto 'emp'
-        emp.cuenta_bancaria = cuenta_limpia
-        self._calcular_nombre(emp, fila_datos)
-        self._calcular_nacionalidad(emp)
-        self._calcular_horario(emp)
-        self._calcular_especialidad(emp, fila_datos)
-        self._inyectar_formulas(emp, fila_excel, fecha_corte)
+        # Llamamos al método maestro del padre
+        self._pre_procesar_comun(emp, fila_datos, self.cfg.campos)
 
-        emp.estado_region = self.cfg.estado_region_default
-        # 1. Obtienes la cuenta cruda del reader
+        # Solo lo específico de Activos
+        self._inyectar_formulas(emp, fila_excel, fecha_corte)
         self._aplicar_reglas(emp, fila_datos)
         return emp
 

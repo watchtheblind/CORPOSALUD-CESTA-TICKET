@@ -31,30 +31,17 @@ class ProcesadorRetroactivo(ProcesadorBase):
 
         return None
 
-    def procesar(
-        self,
-        fila_datos: list,
-        entrada: EntradaRetroactivo,
-        n_item: int,
-        fila_excel: int,
-        anio: str,
-    ) -> Empleado:
-        """Pipeline: extracción → transformaciones → montos retroactivos."""
+    def procesar(self, fila_datos: list, entrada: EntradaRetroactivo, n_item: int, fila_excel: int, anio: str) -> Empleado:
         emp = self._extraer_campos_directos(fila_datos, self.cfg.campos_retroactivo)
         emp.n_fila = n_item
-        cuenta_cruda = self.reader.valor_celda(fila_datos, self.cfg.columna_cuenta_bancaria)
-        cuenta_limpia = self.limpiar_cuenta_bancaria(cuenta_cruda)
-        emp.cuenta_bancaria = cuenta_limpia
-        self._calcular_nombre(emp, fila_datos)
-        self._calcular_nacionalidad(emp)
-        self._calcular_horario(emp)
-        self._calcular_especialidad(emp, fila_datos)
+
+        # Llamamos al método maestro del padre
+        self._pre_procesar_comun(emp, fila_datos, self.cfg.campos_retroactivo)
+
+        # Lo específico de Retroactivo
         self._asignar_retroactivos(emp, entrada, anio)
         self._inyectar_formulas(emp, fila_excel)
-
-        emp.estado_region = self.cfg.estado_region_default
         emp.motivo_retroactivo = entrada.motivo
-
         return emp
 
     def _asignar_retroactivos(self, emp: Empleado, entrada: EntradaRetroactivo, anio: str):
