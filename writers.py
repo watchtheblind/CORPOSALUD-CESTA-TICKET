@@ -59,6 +59,8 @@ class PlantillaWriter:
                         break
 
     @staticmethod
-    def generar_nombre_salida() -> str:
-        ts = datetime.now().strftime('%H_%M_%S')
-        return f'REPORTE_COMPLETO_{ts}.xlsx'
+    def generar_nombre_salida(mes: str, anio: Union[str, int]) -> str:
+        """Genera el nombre del archivo usando el mes y año de la nómina."""
+        # Limpiamos el mes por si viene con espacios o en minúsculas
+        mes_formateado = str(mes).strip().upper()
+        return f'ARAGUA PEDIDO DE TICKET {mes_formateado} {anio}.xlsx'

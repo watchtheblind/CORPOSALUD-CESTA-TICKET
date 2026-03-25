@@ -90,6 +90,20 @@ class DialogoUI:
             'Éxito', f'Se procesaron {registros} registros correctamente.'
         )
 
+    def solicitar_guardar_archivo(self, nombre_sugerido: str) -> Optional[str]:
+        """
+        Abre el diálogo para que el usuario elija dónde guardar el resultado.
+        Retorna la ruta completa o None si cancela.
+        """
+        ruta = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Guardar archivo de carga generado",
+            initialfile=nombre_sugerido,
+            defaultextension=".xlsx",
+            filetypes=[("Libro de Excel", "*.xlsx")]
+        )
+        return ruta if ruta else None
+
     def mostrar_exito_detallado(self, resumen: str):
         messagebox.showinfo('Proceso Completado', resumen)
 

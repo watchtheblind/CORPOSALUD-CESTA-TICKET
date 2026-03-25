@@ -175,67 +175,99 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
     return 0, []
 
 def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados):
-    """Cierra recursos, guarda el Excel y muestra el resumen al usuario."""
+    """Cierra recursos, pide ubicación, muestra resumen y guarda el Excel."""
     
-    # 1. Liberar el archivo de carga
+    # 1. Liberar el archivo de carga (Cierra el Excel que leímos)
     reader.cerrar()
     
-    # 2. Generar nombre dinámico (ej: Carga_2024_03_24_1430.xlsx)
-    nombre_salida = PlantillaWriter.generar_nombre_salida()
-    wb_plantilla.save(nombre_salida)
+    # Obtenemos mes y año del gestor para el nombre del archivo
+    mes_nombre, anio_actual = gestor.obtener_mes_actual()
+    
+    # Generamos el nombre sugerido: "ARAGUA PEDIDO DE TICKET MARZO 2026.xlsx"
+    nombre_sugerido = PlantillaWriter.generar_nombre_salida(mes_nombre, anio_actual)
+    
+    # Le pedimos a la UI que abra el diálogo de guardado
+    nombre_salida = ui.solicitar_guardar_archivo(nombre_sugerido)
 
-    # 3. Construir el mensaje de éxito
-    resumen = (
-        f"📊 PROCESO FINALIZADO\n"
-        f"{'-'*30}\n"
-        f"✅ Activos: {n_activos}\n"
-        f"✅ CMP: {n_cmp}\n"
-        f"✅ Retroactivos: {n_retro}\n"
-        f"{'-'*30}\n"
-        f"Total procesados: {n_activos + n_cmp + n_retro}"
-    )
+    # Si el usuario cierra la ventana o presiona "Cancelar"
+    if not nombre_salida:
+        ui.mostrar_error("Guardado cancelado. No se generó el archivo de salida.")
+        return
 
-    if no_encontrados:
-        resumen += f"\n\n⚠️ Cédulas no encontradas en Retroactivos:\n" + "\n".join(no_encontrados)
+    # 4. Intentar guardar en la ruta elegida por el usuario
+    try:
+        wb_plantilla.save(nombre_salida)
+        
+        # 5. Si guardó bien, mostramos el resumen
+        resumen = (
+            f"📊 PROCESO FINALIZADO\n"
+            f"{'-'*30}\n"
+            f"✅ Activos: {n_activos}\n"
+            f"✅ CMP: {n_cmp}\n"
+            f"✅ Retroactivos: {n_retro}\n"
+            f"{'-'*30}\n"
+            f"Total: {n_activos + n_cmp + n_retro}"
+        )
 
-    # 4. Feedback visual y apertura de archivo
-    ui.mostrar_exito_detallado(resumen)
-    os.startfile(nombre_salida)
+        if no_encontrados:
+            resumen += f"\n\n⚠️ Cédulas no encontradas:\n" + "\n".join(no_encontrados)
+
+        ui.mostrar_exito_detallado(resumen)
+        
+        # 6. Abrir el archivo automáticamente para que lo veas
+        os.startfile(nombre_salida)
+        
+    except Exception as e:
+        ui.mostrar_error(f"Error al guardar el archivo: {e}")
 
 def main():
     ui = DialogoUI()
+    
+    # PANEL DE CONTROL (Interruptores)
     flags = {
         'procesar_activos': True,
         'procesar_cmp': True,
         'procesar_retroactivos': True
     }
+
     try:
-        # Inicialización
+        # 1. Inicialización de datos
         gestor = GestorMontos(CONFIG.ruta_montos_retroactivos)
         monto = obtener_monto_cesta(ui, gestor)
         ruta = ui.solicitar_archivo()
         
-        if not monto or not ruta: return
+        if not monto or not ruta: 
+            return
 
-        # Carga de recursos
+        # 2. Carga de recursos (Abrir archivos)
         reader = ExcelReader(ruta)
         wb_plantilla = load_workbook(CONFIG.plantilla_path)
         fecha_corte = calcular_fecha_corte()
 
-        # Ejecución
+        # --- AQUÍ ESTABA EL ERROR: DEFINIR LAS HOJAS ---
+        # Definimos las hojas inmediatamente para que 'ws_activos' y 'ws_cmp' EXISTAN
+        ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
+        ws_cmp = wb_plantilla[CONFIG.nombres_hojas['cmp']]
+        # -----------------------------------------------
+
+        # 3. Inicializar contadores (Para que el resumen final no falle)
         n_activos = 0
-        if flags['procesar_activos']:
-            n_activos = procesar_activos(reader, ws_activos, fecha_corte, monto)
         n_cmp = 0
-        if flags['procesar_cmp']:
-            n_cmp = procesar_cmp(reader, ws_cmp)
-        # 6. Retroactivos condicionales
         n_retro = 0
         no_encontrados = []
+
+        # 4. Ejecución modular (Uso de los flags)
+        if flags['procesar_activos']:
+            n_activos = procesar_activos(reader, ws_activos, fecha_corte, monto)
+        
+        if flags['procesar_cmp']:
+            n_cmp = procesar_cmp(reader, ws_cmp)
+
         if flags['procesar_retroactivos']:
+            # Nota: coordinar_retroactivos busca su propia hoja ws_retro adentro
             n_retro, no_encontrados = coordinar_retroactivos(ui, reader, wb_plantilla, gestor)
 
-        # Cierre y Salida
+        # 5. Cierre y Salida (El guardado y el resumen)
         finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados)
 
     except Exception as e:
