@@ -174,7 +174,7 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
     
     return 0, []
 
-def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados):
+def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados, gestor):
     """Cierra recursos, pide ubicación, muestra resumen y guarda el Excel."""
     
     # 1. Liberar el archivo de carga (Cierra el Excel que leímos)
@@ -247,7 +247,7 @@ def main():
         # --- AQUÍ ESTABA EL ERROR: DEFINIR LAS HOJAS ---
         # Definimos las hojas inmediatamente para que 'ws_activos' y 'ws_cmp' EXISTAN
         ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
-        ws_cmp = wb_plantilla[CONFIG.nombres_hojas['cmp']]
+        ws_cmp = wb_plantilla[CONFIG.nombres_hojas['cmp']]n
         # -----------------------------------------------
 
         # 3. Inicializar contadores (Para que el resumen final no falle)
@@ -268,7 +268,7 @@ def main():
             n_retro, no_encontrados = coordinar_retroactivos(ui, reader, wb_plantilla, gestor)
 
         # 5. Cierre y Salida (El guardado y el resumen)
-        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados)
+        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados, gestor)
 
     except Exception as e:
         ui.mostrar_error(f"Error crítico: {e}")
