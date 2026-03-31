@@ -63,4 +63,4 @@ class PlantillaWriter:
         """Genera el nombre del archivo usando el mes y año de la nómina."""
         # Limpiamos el mes por si viene con espacios o en minúsculas
         mes_formateado = str(mes).strip().upper()
-        return f'ARAGUA PEDIDO DE TICKET {mes_formateado} {anio}.xlsx'
+        return f'ARAGUA PEDIDO DE TICKET {anio} {mes_formateado}.xlsx'

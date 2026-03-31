@@ -117,5 +117,7 @@
     "FECHA DE INGRESO",
     "FECHA DE EGRESO"
   ],
-  "columna_cuenta_bancaria": "CUENTA BANCARIA"
+  "columna_cuenta_bancaria": "CUENTA BANCARIA",
+  "cantidad_de_columnas_a_leer": 150
+
 }

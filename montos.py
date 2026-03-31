@@ -12,9 +12,9 @@ class GestorMontos:
     def __init__(self, ruta: str):
         self._ruta = Path(ruta)
         self._datos: dict[str, dict[str, float]] = {}
-        self._cargar()
+        self.cargar_desde_disco()
 
-    def _cargar(self):
+    def cargar_desde_disco(self):
         """Carga el JSON. Si no existe, crea uno vacío."""
         if self._ruta.exists():
             with open(self._ruta, encoding='utf-8') as f:
@@ -29,8 +29,8 @@ class GestorMontos:
         else:
             self._datos = {}
 
-    def guardar(self):
-        """Persiste los cambios al disco."""
+    def guardar_en_disco(self):
+        """Guarda el estado actual del caché en el archivo físico."""
         self._ruta.parent.mkdir(parents=True, exist_ok=True)
         with open(self._ruta, 'w', encoding='utf-8') as f:
             json.dump(self._datos, f, indent=2, ensure_ascii=False)
@@ -45,11 +45,7 @@ class GestorMontos:
         if anio not in self._datos:
             self._datos[anio] = {}
         self._datos[anio][mes] = monto
-        self.guardar()
-
-    def obtener_mes_actual(self) -> tuple[str, str]:
-        ahora = datetime.now()
-        return str(ahora.year), f"{ahora.month:02d}"
+        self.guardar_en_disco()
 
     def meses_sin_monto(self, anio: str, hasta_mes: str) -> list[str]:
         faltantes = []
@@ -58,3 +54,8 @@ class GestorMontos:
             if not self.existe_monto(anio, mes_str):
                 faltantes.append(mes_str)
         return faltantes
+        
+    @property
+    def get_datos(self):
+        """Acceso de solo lectura a los datos cargados."""
+        return self._datos
