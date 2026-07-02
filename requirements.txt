@@ -1,0 +1,7 @@
+# Core Data Processing & ETL
+pandas
+openpyxl==3.1.5
+
+# PDF Extraction & Manipulation (Typical for Corposalud PDF-to-Excel workflows)
+pdfplumber==0.11.1
+pypdf==4.2.0
