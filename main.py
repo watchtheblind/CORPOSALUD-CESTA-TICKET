@@ -11,8 +11,12 @@ from writers import PlantillaWriter
 from processors_activos import ProcesadorEmpleado
 from processors_cmp import ProcesadorCMP
 from processors_retro import ProcesadorRetroactivo
+from processors_cmp_custom import ProcesadorCMPCustom
+from processor_descuento_dias import ProcesadorDescuentoDias
 from montos import GestorMontos
 from ui import DialogoUI
+from ui_launcher import LauncherUI
+from ui_cmp import DialogoCMPCustom
 from ui_retroactivos import DialogoRetroactivos, DialogoMontosNuevos
 
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -75,13 +79,18 @@ def ejecutar_pipeline(reader, ws, campos_cfg, ClaseProcesador, filtro_fn, **kwar
             emp = procesador.procesar(fila_datos, item, procesados + 1, fila_destino, kwargs.get('anio'))
             writer.escribir_empleado(emp, fila_destino)
             writer.escribir_retroactivos(emp, fila_destino, CONFIG.meses_abreviados, kwargs.get('anio'))
+        elif ClaseProcesador == ProcesadorCMPCustom:
+            emp = procesador.procesar(fila_datos, item, procesados + 1, fila_destino)
+            writer.escribir_empleado(emp, fila_destino)
         else:
             emp = procesador.procesar(fila_datos, procesados + 1, fila_destino)
             writer.escribir_empleado(emp, fila_destino)
         
         procesados += 1
 
-    return (procesados, no_encontrados) if ClaseProcesador == ProcesadorRetroactivo else procesados
+    if ClaseProcesador in (ProcesadorRetroactivo, ProcesadorCMPCustom):
+        return (procesados, no_encontrados)
+    return procesados
 
 # --- WRAPPERS DE PROCESAMIENTO ---
 
@@ -117,7 +126,22 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
     return ejecutar_pipeline(reader, ws_retro, CONFIG.campos_retroactivo, ProcesadorRetroactivo, None, 
                              gestor_montos=gestor, anio=anio_actual, iterable=dialogo.resultado)
 
-def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_encontrados):
+def coordinar_cmp_custom(ui, reader, wb_plantilla):
+    """Orquesta el procesamiento de CMP Custom sobre la hoja ACTIVOS."""
+    motivos = list(CONFIG.motivos_cmp.values())
+    dialogo = DialogoCMPCustom(ui.root, motivos)
+
+    if dialogo.cancelado or not dialogo.resultado:
+        return 0, []
+
+    ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
+    n, no_encontrados = ejecutar_pipeline(
+        reader, ws_activos, CONFIG.campos, ProcesadorCMPCustom, None,
+        iterable=dialogo.resultado,
+    )
+    return n, no_encontrados
+
+def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias=None):
     """Cierra recursos, genera nombre dinámico y guarda."""
     reader.cerrar()
     
@@ -134,7 +158,11 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_en
 
     try:
         wb_plantilla.save(nombre_salida)
-        resumen = (f"📊 RESUMEN\nActivos: {n_activos}\nCMP: {n_cmp}\nRetro: {n_retro}")
+        resumen = (f"📊 RESUMEN\nActivos: {n_activos}\nCMP: {n_cmp}\nCMP Custom: {n_cmp_custom}\nRetro: {n_retro}")
+        if info_desc_dias:
+            resumen += (f"\nDesc. días: {info_desc_dias['procesados']} aplicados, "
+                        f"{info_desc_dias['no_encontrados']} sin coincidencia "
+                        f"(de {info_desc_dias['total_consolidado']})")
         if no_encontrados: resumen += f"\n\n⚠️ No encontrados: {', '.join(no_encontrados)}"
         ui.mostrar_exito_detallado(resumen)
         os.startfile(nombre_salida)
@@ -145,9 +173,13 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_en
 
 def main():
     ui = DialogoUI()
-    flags = {'activos': True, 'cmp': True, 'retro': True}
 
     try:
+        launcher = LauncherUI(ui.root)
+        if launcher.cancelado or not launcher.resultado:
+            return
+        flags = launcher.resultado
+
         gestor = GestorMontos(CONFIG.ruta_montos_retroactivos)
         monto = obtener_monto_cesta_ticket(ui, gestor)
         ruta = ui.solicitar_archivo()
@@ -159,10 +191,18 @@ def main():
         fecha_corte = ProcesadorFechas.calcular_fecha_corte()
 
         n_activos = procesar_activos(reader, wb_plantilla[CONFIG.nombres_hojas['activos']], fecha_corte, monto) if flags['activos'] else 0
-        n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
-        n_retro, no_en = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
 
-        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_retro, no_en)
+        info_desc_dias = None
+        if flags['activos']:
+            procesador_desc = ProcesadorDescuentoDias(CONFIG)
+            info_desc_dias = procesador_desc.aplicar(wb_plantilla, CONFIG.ruta_consolidado)
+
+        n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
+        n_cmp_custom, no_en_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [])
+        n_retro, no_en_retro = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
+
+        no_encontrados = no_en_cmp + no_en_retro
+        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias)
 
     except Exception as e:
         ui.mostrar_error(f"Error crítico: {e}")

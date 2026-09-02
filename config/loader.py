@@ -44,6 +44,9 @@ class Configuracion:
     horario_default: str
     estado_region_default: str
     plantilla_path: str
+    ruta_consolidado: str
+    columna_desc_dias: str
+    rangos_descuento_dias: list[dict]
 
 
 def cargar_configuracion(ruta: str = None) -> Configuracion:
@@ -93,7 +96,16 @@ def cargar_configuracion(ruta: str = None) -> Configuracion:
         horarios=datos['horarios'],
         horario_default=defaults['horario'],
         estado_region_default=defaults['estado_region'],
-        plantilla_path=defaults['plantilla_path']
+        plantilla_path=defaults['plantilla_path'],
+        ruta_consolidado=defaults.get('ruta_consolidado', 'CONSOLIDADO.xlsx'),
+        columna_desc_dias=defaults.get('columna_desc_dias', '179 DESC. DIA(S) NO LABORADO'),
+        rangos_descuento_dias=defaults.get('rangos_descuento_dias', [
+            {"max": 20, "dias": 1},
+            {"max": 40, "dias": 2},
+            {"max": 60, "dias": 3},
+            {"max": 80, "dias": 4},
+            {"max": 1000000, "dias": 5},
+        ])
     )
 
 

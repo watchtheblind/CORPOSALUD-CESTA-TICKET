@@ -6,7 +6,7 @@
     {"clave": "nac_calc", "origen": null, "destino": "NACIONALIDAD (V/E)"},
     {"clave": "edad", "origen": null, "destino": "EDAD"},
     {"clave": "f_nac", "origen": "FECHA NAC.", "destino": "FECHA DE NACIMIENTO"},
-    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "f_ingre", "origen": "FECHA DE INGRESO", "destino": "FECHA DE INGRESO"},
     {"clave": "anos_servicio", "origen": null, "destino": "AÑOS DE SERVICIO"},
     {"clave": "genero", "origen": "SEXO", "destino": "GENERO (M/F)"},
     {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
@@ -29,7 +29,7 @@
     {"clave": "nombres_completos", "origen": null, "destino": "APELLIDOS Y NOMBRES"},
     {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
     {"clave": "tipo_personal", "origen": "TIPO EMPLEADO", "destino": "TIPO DE PERSONAL"},
-    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "f_ingre", "origen": "FECHA DE INGRESO", "destino": "FECHA DE INGRESO"},
     {"clave": "denom_cargo", "origen": "DESC. CARGO", "destino": "DENOMINACION DE CARGO"},
     {"clave": "carga_horaria", "origen": "CARGA HORARIA", "destino": "CARGA HORARIA"},
     {"clave": "horario_laboral", "origen": null, "destino": "HORARIO LABORAL"},
@@ -47,7 +47,7 @@
     {"clave": "nombres_completos", "origen": null, "destino": "APELLIDOS Y NOMBRES"},
     {"clave": "cuenta", "origen": "CUENTA NOMINA", "destino": "CUENTA BANCARIA"},
     {"clave": "tipo_personal", "origen": "TIPO EMPLEADO", "destino": "TIPO DE PERSONAL"},
-    {"clave": "f_ingre", "origen": "FECHA INGRESO", "destino": "FECHA DE INGRESO"},
+    {"clave": "f_ingre", "origen": "FECHA DE INGRESO", "destino": "FECHA DE INGRESO"},
     {"clave": "denom_cargo", "origen": "DESC. CARGO", "destino": "DENOMINACION DE CARGO"},
     {"clave": "carga_horaria", "origen": "CARGA HORARIA", "destino": "CARGA HORARIA"},
     {"clave": "horario_laboral", "origen": null, "destino": "HORARIO LABORAL"},
@@ -105,7 +105,16 @@
     "excepcion_cedula_e": "604262",
     "horario": "POR DEFINIR",
     "estado_region": "ARAGUA",
-    "plantilla_path": "template.xlsx"
+    "plantilla_path": "E:/Users/M2PC86/Documents/CORPOSALUD-CESTA-TICKET/config/template.xlsx",
+    "ruta_consolidado": "CONSOLIDADO.xlsx",
+    "columna_desc_dias": "179 DESC. DIA(S) NO LABORADO",
+    "rangos_descuento_dias": [
+      {"max": 20, "dias": 1},
+      {"max": 40, "dias": 2},
+      {"max": 60, "dias": 3},
+      {"max": 80, "dias": 4},
+      {"max": 1000000, "dias": 5}
+    ]
   },
   "nombres_hojas": {
     "activos": "ACTIVOS",
