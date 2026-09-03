@@ -69,7 +69,11 @@ def ejecutar_pipeline(reader, ws, campos_cfg, ClaseProcesador, filtro_fn, **kwar
             fila_datos = procesador.buscar_fila_por_cedula(item.cedula, COLUMNAS_LECTURA_MAX)
 
         if fila_datos is None:
-            if not isinstance(item, int): no_encontrados.append(item.cedula)
+            if not isinstance(item, int):
+                if ClaseProcesador == ProcesadorCMPCustom:
+                    no_encontrados.append((item.cedula, item.dependencia))
+                else:
+                    no_encontrados.append(item.cedula)
             continue
             
         if not reader.fila_tiene_cedula(fila_datos) or (filtro_fn and not filtro_fn(fila_datos, reader)):
@@ -129,24 +133,64 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
                              gestor_montos=gestor, anio=anio_actual, iterable=dialogo.resultado)
 
 def coordinar_cmp_custom(ui, reader, wb_plantilla):
-    """Orquesta el procesamiento de CMP Custom sobre la hoja ACTIVOS."""
+    """Orquesta el procesamiento de CMP Custom sobre la hoja ACTIVOS.
+
+    Genera un log de texto con las cédulas procesadas y las que dieron error.
+    """
     dialogo = DialogoCMPCustom(ui.root)
 
     if dialogo.cancelado:
-        return 0, []
+        return 0, [], None
 
     ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
 
     if not dialogo.resultado:
-        return 0, []
+        return 0, [], None
 
     n, no_encontrados = ejecutar_pipeline(
         reader, ws_activos, CONFIG.campos, ProcesadorCMPCustom, None,
         iterable=dialogo.resultado,
     )
-    return n, no_encontrados
 
-def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias=None):
+    ruta_log = _escribir_log_cmp_custom(dialogo.resultado, n, no_encontrados)
+    return n, no_encontrados, ruta_log
+
+
+def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
+    """Escribe un log de texto con el detalle de CMP Custom."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    ruta = f"log_cmp_custom_{timestamp}.txt"
+
+    no_encontradas_set = set(no_encontrados) if no_encontrados else set()
+    claves_no = {(e.cedula, e.dependencia) for e in entradas if (e.cedula, e.dependencia) in no_encontradas_set}
+
+    lineas = []
+    lineas.append("LOG CMP CUSTOM")
+    lineas.append("=" * 40)
+    lineas.append(f"Total ingresadas: {len(entradas)}")
+    lineas.append(f"Procesadas: {n_procesados}")
+    lineas.append(f"Con error (no encontradas): {len(claves_no)}")
+    lineas.append("")
+
+    lineas.append("--- CÉDULAS PROCESADAS ---")
+    for e in entradas:
+        if (e.cedula, e.dependencia) not in claves_no:
+            lineas.append(f"  {e.cedula} | {e.dependencia} | {e.observaciones}")
+
+    lineas.append("")
+    lineas.append("--- CÉDULAS CON ERROR (no encontradas en el archivo de nómina) ---")
+    for e in entradas:
+        if (e.cedula, e.dependencia) in claves_no:
+            lineas.append(f"  {e.cedula} | {e.dependencia}")
+
+    with open(ruta, 'w', encoding='utf-8') as f:
+        f.write("\n".join(lineas))
+
+    print(f"Log CMP Custom generado: {ruta}")
+    return ruta
+
+def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias=None, no_en_cmp=None, ruta_log_cmp=None):
     """Cierra recursos, genera nombre dinámico y guarda."""
     reader.cerrar()
     
@@ -164,6 +208,12 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, 
     try:
         wb_plantilla.save(nombre_salida)
         resumen = (f"📊 RESUMEN\nActivos: {n_activos}\nCMP: {n_cmp}\nCMP Custom: {n_cmp_custom}\nRetro: {n_retro}")
+        if no_en_cmp:
+            resumen += f"\nCMP Custom con error: {len(no_en_cmp)}"
+            errores_fmt = [f"{c}@{d}" for c, d in no_en_cmp]
+            resumen += f"\n❌ {', '.join(errores_fmt)}"
+        if ruta_log_cmp:
+            resumen += f"\n📄 Log CMP Custom: {ruta_log_cmp}"
         if info_desc_dias:
             resumen += (f"\nDesc. días: {info_desc_dias['procesados']} aplicados, "
                         f"{info_desc_dias['no_encontrados']} sin coincidencia "
@@ -208,11 +258,11 @@ def main():
             info_desc_dias = procesador_desc.aplicar(wb_plantilla, reader)
 
         n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
-        n_cmp_custom, no_en_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [])
+        n_cmp_custom, no_en_cmp, ruta_log_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [], None)
         n_retro, no_en_retro = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
 
         no_encontrados = no_en_cmp + no_en_retro
-        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias)
+        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias, no_en_cmp, ruta_log_cmp)
 
     except Exception as e:
         ui.mostrar_error(f"Error crítico: {e}")
