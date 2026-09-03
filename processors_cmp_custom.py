@@ -21,26 +21,30 @@ class ProcesadorCMPCustom(ProcesadorBase):
         self.reader = reader
         self.idx_plantilla = idx_plantilla
         self.cfg = CONFIG
+        self._indice: dict = None
 
-    def buscar_fila(self, cedula: str, dependencia: str, max_columnas: int = 150) -> list | None:
-        """Busca una cédula + dependencia en el libro de carga."""
+    def _construir_indice(self, max_columnas: int):
+        """Construye una sola vez el mapa (cedula, dependencia) -> fila."""
+        self._indice = {}
         col_dep = self.reader.obtener_indice('NOMBRE CENTRO')
         for r in range(self.reader.fila_inicio_datos, self.reader.total_filas + 1):
             fila = self.reader.leer_fila(r, max_columnas)
-
             if not self.reader.fila_tiene_cedula(fila):
                 break
-
             valor_cedula = str(self.reader.valor_celda(fila, 'CEDULA', '')).strip()
-            if valor_cedula != cedula:
+            if not valor_cedula:
                 continue
-
             if col_dep is not None and col_dep < len(fila):
-                valor_dep = str(fila[col_dep] or '').strip()
-                if valor_dep.upper() == dependencia.upper():
-                    return fila
+                valor_dep = str(fila[col_dep] or '').strip().upper()
+            else:
+                valor_dep = ''
+            self._indice.setdefault((valor_cedula, valor_dep), fila)
 
-        return None
+    def buscar_fila(self, cedula: str, dependencia: str, max_columnas: int = 150) -> list | None:
+        """Busca una cédula + dependencia en el libro de carga (O(1) por índice)."""
+        if self._indice is None:
+            self._construir_indice(max_columnas)
+        return self._indice.get((cedula.strip(), dependencia.strip().upper()))
 
     def procesar(self, fila_datos: list, entrada: EntradaCMPCustom, n_item: int, fila_excel: int) -> Empleado:
         emp = self._extraer_campos_directos(fila_datos, self.cfg.campos)
