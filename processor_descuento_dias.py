@@ -1,23 +1,23 @@
 """Procesador de descuento por días no laborados.
 
-Lee el archivo CONSOLIDADO, identifica la columna '179 DESC. DIA(S) NO LABORADO'
-(columna DH), y para cada fila con valor numérico redondea al entero más cercano,
-mapea ese valor a una cantidad de días según los rangos configurables y calcula:
+Lee del mismo archivo de nómina cargado al inicio (el ExcelReader de activos) la
+columna '179 DESC. DIA(S) NO LABORADO' (columna DH). Para cada fila con un valor
+numérico mayor a cero, redondea ese valor hacia abajo (piso), lo mapea a una
+cantidad de días según los rangos configurables y calcula:
 
     descuento = monto_cesta / 30 * dias
 
 El resultado se escribe en la columna S (DESCUENTO POR FALTAS) y en la columna U
 (OBSERVACIONES) de la fila correspondiente del empleado en la hoja ACTIVOS.
 
-Las cédulas del CONSOLIDADO que no se encuentren en la plantilla se exponen en un
+Las cédulas con descuento que no se encuentren en la plantilla se exponen en un
 reporte de texto 'reporte_<timestamp>.txt'.
 
 No requiere UI y corre obligatoriamente tras el procesamiento de activos.
 """
 
+import math
 from datetime import datetime
-
-from openpyxl import load_workbook
 
 
 class ProcesadorDescuentoDias:
@@ -40,61 +40,63 @@ class ProcesadorDescuentoDias:
             return None
 
     def _dias_para(self, valor: float) -> int:
-        """Redondea el valor al entero más cercano y asigna días por rango."""
-        entero = round(valor)
+        """Redondea el valor hacia abajo (piso) y asigna días por rango."""
+        entero = math.floor(valor)
         for rango in self.cfg.rangos_descuento_dias:
             if entero <= rango['max']:
                 return rango['dias']
         return self.cfg.rangos_descuento_dias[-1]['dias']
 
-    def leer_desc_dias(self, ruta_consolidado):
-        """Devuelve dict {cedula_str: dias_descuento} desde el CONSOLIDADO."""
-        wb = load_workbook(ruta_consolidado, data_only=True)
-        ws = wb.active
+    def leer_desc_dias(self, reader):
+        """Devuelve dict {cedula_str: dias_descuento} desde el archivo cargado.
 
-        col = self._encontrar_columna(ws)
+        Usa el mismo ExcelReader que procesa los activos, por lo que trabaja sobre
+        el archivo de nómina seleccionado al inicio (no un archivo fijo).
+        """
+        col = self._encontrar_columna(reader)
         if col is None:
-            wb.close()
             raise ValueError(
                 f"No se encontró la columna '{self.cfg.columna_desc_dias}' "
-                f"en el CONSOLIDADO."
+                f"en el archivo de nómina cargado."
             )
 
         resultado = {}
-        for r in range(2, ws.max_row + 1):
-            valor = self._normalizar_valor(ws.cell(r, col).value)
-            if valor is None:
+        for r in range(reader.fila_inicio_datos, reader.total_filas + 1):
+            fila = reader.leer_fila(r)
+            if col >= len(fila):
                 continue
-            cedula = str(ws.cell(r, 1).value).strip()
+            valor = self._normalizar_valor(fila[col])
+            if valor is None or valor <= 0:
+                continue
+            cedula = str(fila[0]).strip()
             if not cedula or cedula.lower() == 'nan':
                 continue
             resultado[cedula] = self._dias_para(valor)
 
-        wb.close()
         return resultado
 
-    def _encontrar_columna(self, ws):
-        """Localiza la columna por su encabezado en la primera fila."""
-        objetivo = self.cfg.columna_desc_dias.upper().replace(' ', '')
-        for c in range(1, ws.max_column + 1):
-            cabecera = ws.cell(1, c).value
-            if cabecera is None:
-                continue
-            limpia = str(cabecera).upper().replace(' ', '')
-            if objetivo in limpia:
-                return c
-        # Fallback: buscar cabecera que contenga 'NO LABORADO'
-        for c in range(1, ws.max_column + 1):
-            cabecera = ws.cell(1, c).value
+    def _encontrar_columna(self, reader):
+        """Devuelve el índice (0-based) de la columna DH en el reader.
+
+        Usa el encabezado configurado; si no coincide, busca una cabecera que
+        contenga 'NO LABORADO'.
+        """
+        objetivo = str(self.cfg.columna_desc_dias)
+        idx = reader.obtener_indice(objetivo)
+        if idx is not None:
+            return idx
+
+        for c in range(1, reader.ws.max_column + 1):
+            cabecera = reader.ws.cell(1, c).value
             if cabecera and 'NO LABORADO' in str(cabecera).upper():
-                return c
+                return c - 1
         return None
 
     @staticmethod
     def _encontrar_col_por_encabezado(cabeceras: dict, texto):
         return cabeceras.get(texto)
 
-    def aplicar(self, wb_plantilla, ruta_consolidado, ruta_reporte=None):
+    def aplicar(self, wb_plantilla, reader, ruta_reporte=None):
         """Aplica descuentos sobre la hoja ACTIVOS y reporta estadísticas."""
         hoja = wb_plantilla['ACTIVOS' if 'ACTIVOS' in wb_plantilla.sheetnames else wb_plantilla.sheetnames[0]]
 
@@ -124,7 +126,7 @@ class ProcesadorDescuentoDias:
                 continue
             fila_por_cedula[str(ced).strip()] = r
 
-        desc_dias = self.leer_desc_dias(ruta_consolidado)
+        desc_dias = self.leer_desc_dias(reader)
 
         procesados = 0
         no_encontrados = 0

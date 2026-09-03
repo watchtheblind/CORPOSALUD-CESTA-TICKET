@@ -106,7 +106,6 @@
     "horario": "POR DEFINIR",
     "estado_region": "ARAGUA",
     "plantilla_path": "E:/Users/M2PC86/Documents/CORPOSALUD-CESTA-TICKET/config/template.xlsx",
-    "ruta_consolidado": "CONSOLIDADO.xlsx",
     "columna_desc_dias": "179 DESC. DIA(S) NO LABORADO",
     "rangos_descuento_dias": [
       {"max": 20, "dias": 1},

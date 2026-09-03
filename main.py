@@ -200,7 +200,7 @@ def main():
         info_desc_dias = None
         if flags['activos']:
             procesador_desc = ProcesadorDescuentoDias(CONFIG)
-            info_desc_dias = procesador_desc.aplicar(wb_plantilla, CONFIG.ruta_consolidado)
+            info_desc_dias = procesador_desc.aplicar(wb_plantilla, reader)
 
         n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
         n_cmp_custom, no_en_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [])
