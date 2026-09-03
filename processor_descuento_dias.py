@@ -9,8 +9,13 @@ mapea ese valor a una cantidad de días según los rangos configurables y calcul
 El resultado se escribe en la columna S (DESCUENTO POR FALTAS) y en la columna U
 (OBSERVACIONES) de la fila correspondiente del empleado en la hoja ACTIVOS.
 
+Las cédulas del CONSOLIDADO que no se encuentren en la plantilla se exponen en un
+reporte de texto 'reporte_<timestamp>.txt'.
+
 No requiere UI y corre obligatoriamente tras el procesamiento de activos.
 """
+
+from datetime import datetime
 
 from openpyxl import load_workbook
 
@@ -89,7 +94,7 @@ class ProcesadorDescuentoDias:
     def _encontrar_col_por_encabezado(cabeceras: dict, texto):
         return cabeceras.get(texto)
 
-    def aplicar(self, wb_plantilla, ruta_consolidado):
+    def aplicar(self, wb_plantilla, ruta_consolidado, ruta_reporte=None):
         """Aplica descuentos sobre la hoja ACTIVOS y reporta estadísticas."""
         hoja = wb_plantilla['ACTIVOS' if 'ACTIVOS' in wb_plantilla.sheetnames else wb_plantilla.sheetnames[0]]
 
@@ -123,10 +128,12 @@ class ProcesadorDescuentoDias:
 
         procesados = 0
         no_encontrados = 0
+        cedulas_no_encontradas = []
         for cedula, dias in desc_dias.items():
             fila = fila_por_cedula.get(str(cedula).strip())
             if fila is None:
                 no_encontrados += 1
+                cedulas_no_encontradas.append(str(cedula).strip())
                 continue
 
             monto = self._normalizar_valor(hoja.cell(fila, col_monto).value) or 0.0
@@ -136,8 +143,31 @@ class ProcesadorDescuentoDias:
             hoja.cell(fila, col_obs, value=f"DESCUENTO DE TICKET DE {dias} POR AUSENTISMO LABORAL")
             procesados += 1
 
+        if cedulas_no_encontradas and ruta_reporte is None:
+            ruta_reporte = self._generar_ruta_reporte()
+
+        if cedulas_no_encontradas and ruta_reporte:
+            self._escribir_reporte(ruta_reporte, cedulas_no_encontradas)
+
         return {
             'procesados': procesados,
             'no_encontrados': no_encontrados,
             'total_consolidado': len(desc_dias),
+            'cedulas_no_encontradas': cedulas_no_encontradas,
+            'ruta_reporte': ruta_reporte if cedulas_no_encontradas else None,
         }
+
+    @staticmethod
+    def _generar_ruta_reporte():
+        """Genera un nombre de archivo 'reporte_<timestamp>.txt'."""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return f"reporte_{timestamp}.txt"
+
+    @staticmethod
+    def _escribir_reporte(ruta, cedulas):
+        """Escribe las cédulas no encontradas en un archivo de texto."""
+        with open(ruta, 'w', encoding='utf-8') as f:
+            f.write("CÉDULAS DEL CONSOLIDADO NO ENCONTRADAS EN LA PLANTILLA\n")
+            f.write("=" * 60 + "\n")
+            for cedula in cedulas:
+                f.write(f"{cedula}\n")

@@ -163,6 +163,8 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, 
             resumen += (f"\nDesc. días: {info_desc_dias['procesados']} aplicados, "
                         f"{info_desc_dias['no_encontrados']} sin coincidencia "
                         f"(de {info_desc_dias['total_consolidado']})")
+            if info_desc_dias.get('ruta_reporte'):
+                resumen += f"\n📄 Reporte de cédulas no halladas: {info_desc_dias['ruta_reporte']}"
         if no_encontrados: resumen += f"\n\n⚠️ No encontrados: {', '.join(no_encontrados)}"
         ui.mostrar_exito_detallado(resumen)
         os.startfile(nombre_salida)
