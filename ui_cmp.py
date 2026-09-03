@@ -12,18 +12,16 @@ import pandas as pd
 class EntradaCMPCustom:
     """Datos de un empleado con CMP custom."""
     cedula: str
-    motivo: str
+    dependencia: str
+    observaciones: str
 
 
 class DialogoCMPCustom:
     """Ventana principal para capturar cédulas y motivos de CMP custom."""
 
-    def __init__(self, parent, motivos: list[str]):
+    def __init__(self, parent):
         self.resultado: list[EntradaCMPCustom] = []
         self.cancelado = False
-        self.modo: str = 'template'
-        self.ruta_archivo_lleno: Optional[str] = None
-        self._motivos_sugeridos: set[str] = set(motivos)
 
         self.win = tk.Toplevel(parent)
         self.win.title("CMP Custom — Cédulas con monto 0")
@@ -39,48 +37,30 @@ class DialogoCMPCustom:
             pady=10,
         ).pack()
 
-        # --- Selector de modo ---
-        modo_frame = tk.LabelFrame(self.win, text="Modo de carga", padx=10, pady=8)
-        modo_frame.pack(fill='x', padx=15, pady=5)
-
-        self._var_modo = tk.StringVar(value='template')
-        tk.Radiobutton(
-            modo_frame, text="Usar template (agregar cédulas manualmente o importar)",
-            variable=self._var_modo, value='template',
-            command=self._cambiar_modo,
-        ).pack(anchor='w')
-        tk.Radiobutton(
-            modo_frame, text="Cargar archivo CMP Custom ya lleno",
-            variable=self._var_modo, value='archivo_lleno',
-            command=self._cambiar_modo,
-        ).pack(anchor='w')
-
-        # --- Contenedor de widgets de cada modo ---
-        self._container = tk.Frame(self.win)
-        self._container.pack(fill='both', expand=True)
-
-        # --- Modo template: entrada manual + importar + lista ---
-        self._frame_template = tk.Frame(self._container)
-        self._frame_template.pack(fill='both', expand=True)
-
-        input_frame = tk.LabelFrame(self._frame_template, text="Agregar manualmente", padx=10, pady=10)
+        # --- Entrada manual ---
+        input_frame = tk.LabelFrame(self.win, text="Agregar manualmente", padx=10, pady=10)
         input_frame.pack(fill='x', padx=15, pady=5)
 
         # Cédula
         row_ced = tk.Frame(input_frame)
         row_ced.pack(fill='x', pady=3)
-        tk.Label(row_ced, text="Cédula:", width=10, anchor='w').pack(side='left')
+        tk.Label(row_ced, text="Cédula:", width=14, anchor='w').pack(side='left')
         self.entry_cedula = tk.Entry(row_ced, width=20)
         self.entry_cedula.pack(side='left', padx=5)
 
-        # Motivo
-        row_mot = tk.Frame(input_frame)
-        row_mot.pack(fill='x', pady=3)
-        tk.Label(row_mot, text="Motivo:", width=10, anchor='w').pack(side='left')
-        self.combo_motivo = ttk.Combobox(row_mot, values=sorted(self._motivos_sugeridos), width=45)
-        self.combo_motivo.pack(side='left', padx=5)
-        if self._motivos_sugeridos:
-            self.combo_motivo.current(0)
+        # Dependencia
+        row_dep = tk.Frame(input_frame)
+        row_dep.pack(fill='x', pady=3)
+        tk.Label(row_dep, text="Dependencia:", width=14, anchor='w').pack(side='left')
+        self.entry_dependencia = tk.Entry(row_dep, width=45)
+        self.entry_dependencia.pack(side='left', padx=5)
+
+        # Observaciones
+        row_obs = tk.Frame(input_frame)
+        row_obs.pack(fill='x', pady=3)
+        tk.Label(row_obs, text="Observaciones:", width=14, anchor='w').pack(side='left')
+        self.entry_observaciones = tk.Entry(row_obs, width=45)
+        self.entry_observaciones.pack(side='left', padx=5)
 
         # Botón agregar
         tk.Button(
@@ -90,14 +70,14 @@ class DialogoCMPCustom:
 
         # --- Botón importar masivo ---
         tk.Button(
-            self._frame_template,
+            self.win,
             text="Importar cédulas y motivos desde Excel",
             command=self._importar_desde_excel,
             bg='#FF9800', fg='white', width=35, height=2,
         ).pack(pady=8)
 
         # --- Lista de agregados ---
-        list_frame = tk.LabelFrame(self._frame_template, text="Cédulas ingresadas", padx=10, pady=5)
+        list_frame = tk.LabelFrame(self.win, text="Cédulas ingresadas", padx=10, pady=5)
         list_frame.pack(fill='both', expand=True, padx=15, pady=5)
 
         self.listbox = tk.Listbox(list_frame, height=8, font=('Consolas', 9))
@@ -112,31 +92,6 @@ class DialogoCMPCustom:
         tk.Button(
             list_frame, text="Eliminar seleccionado", command=self._eliminar,
         ).pack(pady=3)
-
-        # --- Modo archivo lleno: selector de archivo ---
-        self._frame_archivo = tk.Frame(self._container)
-
-        archivo_frame = tk.LabelFrame(self._frame_archivo, text="Seleccionar archivo CMP Custom procesado", padx=15, pady=15)
-        archivo_frame.pack(fill='both', expand=True, padx=15, pady=15)
-
-        tk.Label(
-            archivo_frame,
-            text="Seleccione el archivo Excel que contiene la hoja ACTIVOS\nya procesada con monto 0 y motivo:",
-            justify='center',
-        ).pack(pady=(0, 12))
-
-        self._lbl_ruta = tk.Label(
-            archivo_frame,
-            text="Ningún archivo seleccionado",
-            fg='gray', wraplength=420,
-        )
-        self._lbl_ruta.pack(pady=5)
-
-        tk.Button(
-            archivo_frame, text="Seleccionar archivo...",
-            command=self._seleccionar_archivo_lleno,
-            bg='#FF9800', fg='white', width=25, height=2,
-        ).pack(pady=10)
 
         # --- Botones finales ---
         btn_frame = tk.Frame(self.win, pady=10)
@@ -162,33 +117,30 @@ class DialogoCMPCustom:
             messagebox.showwarning("Atención", "Ingresa una cédula.", parent=self.win)
             return
 
-        motivo = self.combo_motivo.get().strip()
-        if not motivo:
-            messagebox.showwarning("Atención", "Selecciona o escribe un motivo.", parent=self.win)
+        dependencia = self.entry_dependencia.get().strip()
+        if not dependencia:
+            messagebox.showwarning("Atención", "Ingresa la dependencia.", parent=self.win)
             return
 
-        # Verificar duplicado
+        observaciones = self.entry_observaciones.get().strip()
+
         for r in self.resultado:
-            if r.cedula == cedula:
+            if r.cedula == cedula and r.dependencia == dependencia:
                 messagebox.showwarning(
                     "Atención",
-                    f"La cédula {cedula} ya fue agregada.",
+                    f"La cédula {cedula} ya fue agregada para {dependencia}.",
                     parent=self.win,
                 )
                 return
 
-        entrada = EntradaCMPCustom(cedula=cedula, motivo=motivo)
+        entrada = EntradaCMPCustom(cedula=cedula, dependencia=dependencia, observaciones=observaciones)
         self.resultado.append(entrada)
-        self._motivos_sugeridos.add(motivo)
 
-        # Actualizar combobox de sugerencias
-        self.combo_motivo['values'] = sorted(self._motivos_sugeridos)
+        self.listbox.insert(tk.END, f"C.I. {cedula} | {dependencia}")
 
-        # Mostrar en la lista
-        self.listbox.insert(tk.END, f"C.I. {cedula} | {motivo}")
-
-        # Limpiar
         self.entry_cedula.delete(0, tk.END)
+        self.entry_dependencia.delete(0, tk.END)
+        self.entry_observaciones.delete(0, tk.END)
 
     def _eliminar(self):
         sel = self.listbox.curselection()
@@ -241,8 +193,8 @@ class DialogoCMPCustom:
         if resultado_cols is None:
             return
 
-        col_cedula, col_motivo = resultado_cols
-        self._procesar_importacion(df, col_cedula, col_motivo)
+        col_cedula, col_dependencia, col_observaciones = resultado_cols
+        self._procesar_importacion(df, col_cedula, col_dependencia, col_observaciones)
 
     def _dialogo_seleccion_hoja(self, hojas: list[str]) -> Optional[str]:
         dlg = tk.Toplevel(self.win)
@@ -272,7 +224,7 @@ class DialogoCMPCustom:
         dlg.wait_window()
         return resultado[0]
 
-    def _dialogo_seleccion_columnas(self, df: pd.DataFrame) -> Optional[tuple[str, str]]:
+    def _dialogo_seleccion_columnas(self, df: pd.DataFrame) -> Optional[tuple[str, str, str]]:
         columnas = list(df.columns)
 
         dlg = tk.Toplevel(self.win)
@@ -295,12 +247,19 @@ class DialogoCMPCustom:
         var_cedula = tk.StringVar(value=columnas[0])
         ttk.Combobox(frame_ced, values=columnas, textvariable=var_cedula, state='readonly', width=30).pack(side='left', padx=5)
 
-        # Columna de motivos
-        frame_mot = tk.Frame(dlg)
-        frame_mot.pack(fill='x', padx=15, pady=3)
-        tk.Label(frame_mot, text="Columna de motivos:", width=18, anchor='w').pack(side='left')
-        var_motivo = tk.StringVar(value=columnas[1] if len(columnas) > 1 else columnas[0])
-        ttk.Combobox(frame_mot, values=columnas, textvariable=var_motivo, state='readonly', width=30).pack(side='left', padx=5)
+        # Columna de dependencia
+        frame_dep = tk.Frame(dlg)
+        frame_dep.pack(fill='x', padx=15, pady=3)
+        tk.Label(frame_dep, text="Columna de dependencia:", width=18, anchor='w').pack(side='left')
+        var_dependencia = tk.StringVar(value=columnas[1] if len(columnas) > 1 else columnas[0])
+        ttk.Combobox(frame_dep, values=columnas, textvariable=var_dependencia, state='readonly', width=30).pack(side='left', padx=5)
+
+        # Columna de observaciones
+        frame_obs = tk.Frame(dlg)
+        frame_obs.pack(fill='x', padx=15, pady=3)
+        tk.Label(frame_obs, text="Columna de observaciones:", width=18, anchor='w').pack(side='left')
+        var_observaciones = tk.StringVar(value=columnas[2] if len(columnas) > 2 else columnas[0])
+        ttk.Combobox(frame_obs, values=columnas, textvariable=var_observaciones, state='readonly', width=30).pack(side='left', padx=5)
 
         # Vista previa
         preview_frame = tk.LabelFrame(dlg, text="Vista previa (primeras 5 filas)", padx=8, pady=5)
@@ -311,66 +270,68 @@ class DialogoCMPCustom:
 
         def actualizar_preview(*_args):
             col_ced = var_cedula.get()
-            col_mot = var_motivo.get()
+            col_dep = var_dependencia.get()
+            col_obs = var_observaciones.get()
             preview_text.config(state='normal')
             preview_text.delete('1.0', tk.END)
-            if not col_ced or not col_mot:
-                preview_text.insert(tk.END, "Seleccione ambas columnas.")
+            if not col_ced or not col_dep:
+                preview_text.insert(tk.END, "Seleccione al menos cédula y dependencia.")
             else:
                 total = len(df)
                 preview_text.insert(tk.END, f"Total: {total} filas\n\n")
                 for _, row in df.head(5).iterrows():
                     ced_val = str(row.get(col_ced, "")).strip()
-                    mot_val = str(row.get(col_mot, "")).strip()
-                    preview_text.insert(tk.END, f"  Cédula: {ced_val}  |  Motivo: {mot_val}\n")
+                    dep_val = str(row.get(col_dep, "")).strip()
+                    obs_val = str(row.get(col_obs, "")).strip() if col_obs else ""
+                    preview_text.insert(tk.END, f"  {ced_val} | {dep_val} | {obs_val}\n")
             preview_text.config(state='disabled')
 
         var_cedula.trace_add('write', actualizar_preview)
-        var_motivo.trace_add('write', actualizar_preview)
+        var_dependencia.trace_add('write', actualizar_preview)
+        var_observaciones.trace_add('write', actualizar_preview)
         actualizar_preview()
 
         resultado = [None]
 
         def aceptar():
             ced = var_cedula.get()
-            mot = var_motivo.get()
-            if not ced or not mot:
-                messagebox.showwarning("Atención", "Seleccione ambas columnas.", parent=dlg)
+            dep = var_dependencia.get()
+            obs = var_observaciones.get()
+            if not ced or not dep:
+                messagebox.showwarning("Atención", "Seleccione al menos cédula y dependencia.", parent=dlg)
                 return
-            resultado[0] = (ced, mot)
+            resultado[0] = (ced, dep, obs)
             dlg.destroy()
 
         tk.Button(dlg, text="Importar", command=aceptar, width=12, bg='#2196F3', fg='white').pack(pady=10)
         dlg.wait_window()
         return resultado[0]
 
-    def _procesar_importacion(self, df: pd.DataFrame, col_cedula: str, col_motivo: str):
+    def _procesar_importacion(self, df: pd.DataFrame, col_cedula: str, col_dependencia: str, col_observaciones: str):
         cedulas_nuevas = 0
         cedulas_duplicadas = 0
         cedulas_vacias = 0
 
-        cedulas_existentes = {e.cedula for e in self.resultado}
+        cedulas_existentes = {(e.cedula, e.dependencia) for e in self.resultado}
 
         for _, row in df.iterrows():
             ced_val = str(row.get(col_cedula, "")).strip()
-            mot_val = str(row.get(col_motivo, "")).strip()
+            dep_val = str(row.get(col_dependencia, "")).strip()
+            obs_val = str(row.get(col_observaciones, "")).strip() if col_observaciones else ""
 
             if not ced_val or ced_val == 'nan':
                 cedulas_vacias += 1
                 continue
 
-            if ced_val in cedulas_existentes:
+            if (ced_val, dep_val) in cedulas_existentes:
                 cedulas_duplicadas += 1
                 continue
 
-            entrada = EntradaCMPCustom(cedula=ced_val, motivo=mot_val)
+            entrada = EntradaCMPCustom(cedula=ced_val, dependencia=dep_val, observaciones=obs_val)
             self.resultado.append(entrada)
-            cedulas_existentes.add(ced_val)
-            self._motivos_sugeridos.add(mot_val)
+            cedulas_existentes.add((ced_val, dep_val))
             cedulas_nuevas += 1
 
-        # Actualizar UI
-        self.combo_motivo['values'] = sorted(self._motivos_sugeridos)
         self._refrescar_lista()
 
         partes = [f"Importadas: {cedulas_nuevas} cédula(s)"]
@@ -384,69 +345,19 @@ class DialogoCMPCustom:
     def _refrescar_lista(self):
         self.listbox.delete(0, tk.END)
         for e in self.resultado:
-            self.listbox.insert(tk.END, f"C.I. {e.cedula} | {e.motivo}")
+            self.listbox.insert(tk.END, f"C.I. {e.cedula} | {e.dependencia}")
 
     # --- Finales ---
 
     def _procesar(self):
-        if self.modo == 'archivo_lleno':
-            if not self.ruta_archivo_lleno:
-                messagebox.showwarning("Atención", "Selecciona un archivo.", parent=self.win)
-                return
-            self.win.destroy()
-        else:
-            if not self.resultado:
-                messagebox.showwarning(
-                    "Atención", "No hay cédulas ingresadas.", parent=self.win
-                )
-                return
-            self.win.destroy()
+        if not self.resultado:
+            messagebox.showwarning(
+                "Atención", "No hay cédulas ingresadas.", parent=self.win
+            )
+            return
+        self.win.destroy()
 
     def _omitir(self):
         self.resultado = []
         self.cancelado = True
         self.win.destroy()
-
-    # --- Modo de carga ---
-
-    def _cambiar_modo(self):
-        modo = self._var_modo.get()
-        self.modo = modo
-        if modo == 'template':
-            self._frame_archivo.pack_forget()
-            self._frame_template.pack(fill='both', expand=True)
-        else:
-            self._frame_template.pack_forget()
-            self._frame_archivo.pack(fill='both', expand=True)
-
-    def _seleccionar_archivo_lleno(self):
-        ruta = filedialog.askopenfilename(
-            title='Seleccionar archivo CMP Custom procesado',
-            filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")],
-            parent=self.win,
-        )
-        if not ruta:
-            return
-
-        try:
-            from openpyxl import load_workbook
-            wb = load_workbook(ruta, read_only=True, data_only=True)
-            if 'ACTIVOS' not in wb.sheetnames:
-                wb.close()
-                messagebox.showerror(
-                    "Error",
-                    "El archivo no tiene una hoja 'ACTIVOS'.",
-                    parent=self.win,
-                )
-                return
-            ws = wb['ACTIVOS']
-            filas = ws.max_row - 8 if ws.max_row > 8 else 0
-            wb.close()
-        except Exception as ex:
-            messagebox.showerror("Error", f"No se pudo leer el archivo:\n{ex}", parent=self.win)
-            return
-
-        self.ruta_archivo_lleno = ruta
-        import os
-        nombre = os.path.basename(ruta)
-        self._lbl_ruta.config(text=f"{nombre}\n({filas} filas de datos)", fg='black')

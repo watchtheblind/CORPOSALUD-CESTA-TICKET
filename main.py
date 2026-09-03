@@ -11,7 +11,7 @@ from writers import PlantillaWriter
 from processors_activos import ProcesadorEmpleado
 from processors_cmp import ProcesadorCMP
 from processors_retro import ProcesadorRetroactivo
-from processors_cmp_custom import ProcesadorCMPCustom, importar_archivo_lleno
+from processors_cmp_custom import ProcesadorCMPCustom
 from processor_descuento_dias import ProcesadorDescuentoDias
 from montos import GestorMontos
 from ui import DialogoUI
@@ -61,9 +61,11 @@ def ejecutar_pipeline(reader, ws, campos_cfg, ClaseProcesador, filtro_fn, **kwar
     no_encontrados = [] 
 
     for item in iterable:
-        if isinstance(item, int): 
+        if isinstance(item, int):
             fila_datos = reader.leer_fila(item, COLUMNAS_LECTURA_MAX)
-        else: 
+        elif ClaseProcesador == ProcesadorCMPCustom:
+            fila_datos = procesador.buscar_fila(item.cedula, item.dependencia, COLUMNAS_LECTURA_MAX)
+        else:
             fila_datos = procesador.buscar_fila_por_cedula(item.cedula, COLUMNAS_LECTURA_MAX)
 
         if fila_datos is None:
@@ -128,17 +130,12 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
 
 def coordinar_cmp_custom(ui, reader, wb_plantilla):
     """Orquesta el procesamiento de CMP Custom sobre la hoja ACTIVOS."""
-    motivos = list(CONFIG.motivos_cmp.values())
-    dialogo = DialogoCMPCustom(ui.root, motivos)
+    dialogo = DialogoCMPCustom(ui.root)
 
     if dialogo.cancelado:
         return 0, []
 
     ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
-
-    if dialogo.modo == 'archivo_lleno':
-        n = importar_archivo_lleno(dialogo.ruta_archivo_lleno, ws_activos)
-        return n, []
 
     if not dialogo.resultado:
         return 0, []
