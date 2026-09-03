@@ -11,7 +11,7 @@ from writers import PlantillaWriter
 from processors_activos import ProcesadorEmpleado
 from processors_cmp import ProcesadorCMP
 from processors_retro import ProcesadorRetroactivo
-from processors_cmp_custom import ProcesadorCMPCustom
+from processors_cmp_custom import ProcesadorCMPCustom, importar_archivo_lleno
 from processor_descuento_dias import ProcesadorDescuentoDias
 from montos import GestorMontos
 from ui import DialogoUI
@@ -131,10 +131,18 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla):
     motivos = list(CONFIG.motivos_cmp.values())
     dialogo = DialogoCMPCustom(ui.root, motivos)
 
-    if dialogo.cancelado or not dialogo.resultado:
+    if dialogo.cancelado:
         return 0, []
 
     ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
+
+    if dialogo.modo == 'archivo_lleno':
+        n = importar_archivo_lleno(dialogo.ruta_archivo_lleno, ws_activos)
+        return n, []
+
+    if not dialogo.resultado:
+        return 0, []
+
     n, no_encontrados = ejecutar_pipeline(
         reader, ws_activos, CONFIG.campos, ProcesadorCMPCustom, None,
         iterable=dialogo.resultado,

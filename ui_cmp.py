@@ -21,6 +21,8 @@ class DialogoCMPCustom:
     def __init__(self, parent, motivos: list[str]):
         self.resultado: list[EntradaCMPCustom] = []
         self.cancelado = False
+        self.modo: str = 'template'
+        self.ruta_archivo_lleno: Optional[str] = None
         self._motivos_sugeridos: set[str] = set(motivos)
 
         self.win = tk.Toplevel(parent)
@@ -37,8 +39,31 @@ class DialogoCMPCustom:
             pady=10,
         ).pack()
 
-        # --- Frame de entrada manual ---
-        input_frame = tk.LabelFrame(self.win, text="Agregar manualmente", padx=10, pady=10)
+        # --- Selector de modo ---
+        modo_frame = tk.LabelFrame(self.win, text="Modo de carga", padx=10, pady=8)
+        modo_frame.pack(fill='x', padx=15, pady=5)
+
+        self._var_modo = tk.StringVar(value='template')
+        tk.Radiobutton(
+            modo_frame, text="Usar template (agregar cédulas manualmente o importar)",
+            variable=self._var_modo, value='template',
+            command=self._cambiar_modo,
+        ).pack(anchor='w')
+        tk.Radiobutton(
+            modo_frame, text="Cargar archivo CMP Custom ya lleno",
+            variable=self._var_modo, value='archivo_lleno',
+            command=self._cambiar_modo,
+        ).pack(anchor='w')
+
+        # --- Contenedor de widgets de cada modo ---
+        self._container = tk.Frame(self.win)
+        self._container.pack(fill='both', expand=True)
+
+        # --- Modo template: entrada manual + importar + lista ---
+        self._frame_template = tk.Frame(self._container)
+        self._frame_template.pack(fill='both', expand=True)
+
+        input_frame = tk.LabelFrame(self._frame_template, text="Agregar manualmente", padx=10, pady=10)
         input_frame.pack(fill='x', padx=15, pady=5)
 
         # Cédula
@@ -64,16 +89,15 @@ class DialogoCMPCustom:
         ).pack(pady=8)
 
         # --- Botón importar masivo ---
-        btn_importar = tk.Button(
-            self.win,
+        tk.Button(
+            self._frame_template,
             text="Importar cédulas y motivos desde Excel",
             command=self._importar_desde_excel,
             bg='#FF9800', fg='white', width=35, height=2,
-        )
-        btn_importar.pack(pady=8)
+        ).pack(pady=8)
 
         # --- Lista de agregados ---
-        list_frame = tk.LabelFrame(self.win, text="Cédulas ingresadas", padx=10, pady=5)
+        list_frame = tk.LabelFrame(self._frame_template, text="Cédulas ingresadas", padx=10, pady=5)
         list_frame.pack(fill='both', expand=True, padx=15, pady=5)
 
         self.listbox = tk.Listbox(list_frame, height=8, font=('Consolas', 9))
@@ -88,6 +112,31 @@ class DialogoCMPCustom:
         tk.Button(
             list_frame, text="Eliminar seleccionado", command=self._eliminar,
         ).pack(pady=3)
+
+        # --- Modo archivo lleno: selector de archivo ---
+        self._frame_archivo = tk.Frame(self._container)
+
+        archivo_frame = tk.LabelFrame(self._frame_archivo, text="Seleccionar archivo CMP Custom procesado", padx=15, pady=15)
+        archivo_frame.pack(fill='both', expand=True, padx=15, pady=15)
+
+        tk.Label(
+            archivo_frame,
+            text="Seleccione el archivo Excel que contiene la hoja ACTIVOS\nya procesada con monto 0 y motivo:",
+            justify='center',
+        ).pack(pady=(0, 12))
+
+        self._lbl_ruta = tk.Label(
+            archivo_frame,
+            text="Ningún archivo seleccionado",
+            fg='gray', wraplength=420,
+        )
+        self._lbl_ruta.pack(pady=5)
+
+        tk.Button(
+            archivo_frame, text="Seleccionar archivo...",
+            command=self._seleccionar_archivo_lleno,
+            bg='#FF9800', fg='white', width=25, height=2,
+        ).pack(pady=10)
 
         # --- Botones finales ---
         btn_frame = tk.Frame(self.win, pady=10)
@@ -340,14 +389,64 @@ class DialogoCMPCustom:
     # --- Finales ---
 
     def _procesar(self):
-        if not self.resultado:
-            messagebox.showwarning(
-                "Atención", "No hay cédulas ingresadas.", parent=self.win
-            )
-            return
-        self.win.destroy()
+        if self.modo == 'archivo_lleno':
+            if not self.ruta_archivo_lleno:
+                messagebox.showwarning("Atención", "Selecciona un archivo.", parent=self.win)
+                return
+            self.win.destroy()
+        else:
+            if not self.resultado:
+                messagebox.showwarning(
+                    "Atención", "No hay cédulas ingresadas.", parent=self.win
+                )
+                return
+            self.win.destroy()
 
     def _omitir(self):
         self.resultado = []
         self.cancelado = True
         self.win.destroy()
+
+    # --- Modo de carga ---
+
+    def _cambiar_modo(self):
+        modo = self._var_modo.get()
+        self.modo = modo
+        if modo == 'template':
+            self._frame_archivo.pack_forget()
+            self._frame_template.pack(fill='both', expand=True)
+        else:
+            self._frame_template.pack_forget()
+            self._frame_archivo.pack(fill='both', expand=True)
+
+    def _seleccionar_archivo_lleno(self):
+        ruta = filedialog.askopenfilename(
+            title='Seleccionar archivo CMP Custom procesado',
+            filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")],
+            parent=self.win,
+        )
+        if not ruta:
+            return
+
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(ruta, read_only=True, data_only=True)
+            if 'ACTIVOS' not in wb.sheetnames:
+                wb.close()
+                messagebox.showerror(
+                    "Error",
+                    "El archivo no tiene una hoja 'ACTIVOS'.",
+                    parent=self.win,
+                )
+                return
+            ws = wb['ACTIVOS']
+            filas = ws.max_row - 8 if ws.max_row > 8 else 0
+            wb.close()
+        except Exception as ex:
+            messagebox.showerror("Error", f"No se pudo leer el archivo:\n{ex}", parent=self.win)
+            return
+
+        self.ruta_archivo_lleno = ruta
+        import os
+        nombre = os.path.basename(ruta)
+        self._lbl_ruta.config(text=f"{nombre}\n({filas} filas de datos)", fg='black')
