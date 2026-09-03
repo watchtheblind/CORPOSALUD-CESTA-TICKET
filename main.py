@@ -156,6 +156,21 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
         wb.close()
         raise ValueError("El archivo cargado no tiene una hoja con columna CEDULA.")
 
+    ws_cmp = _hoja_cmp(wb)
+    col_cmp_cedula, fila_cmp_datos = (None, None)
+    col_cmp_obs = None
+    if ws_cmp is not None:
+        col_cmp_cedula, fila_cmp_datos = _localizar_cedula(ws_cmp)
+        col_cmp_obs = 14  # columna N
+        indice_cmp = {}
+        for r in range(fila_cmp_datos, ws_cmp.max_row + 1):
+            ced = ws_cmp.cell(r, col_cmp_cedula).value
+            if ced is None or str(ced).strip() == '':
+                continue
+            indice_cmp.setdefault(str(ced).strip(), r)
+    else:
+        indice_cmp = {}
+
     col_cedula, fila_datos = _localizar_cedula(ws)
     col_monto = _indice_nombre(ws, fila_datos - 1, 'MONTO')
     col_obs = _indice_nombre(ws, fila_datos - 1, 'OBSERVACIONES')
@@ -174,20 +189,30 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
         indice[(str(ced).strip(), str(dep or '').strip().upper())] = r
 
     procesados = 0
+    procesados_cmp = 0
     no_encontrados = []
     for e in entradas:
         clave = (e.cedula.strip(), e.dependencia.strip().upper())
         r = indice.get(clave)
-        if r is None:
-            no_encontrados.append((e.cedula, e.dependencia))
+        if r is not None:
+            ws.cell(r, col_monto, 0)
+            if e.observaciones:
+                ws.cell(r, col_obs, e.observaciones)
+            procesados += 1
             continue
-        ws.cell(r, col_monto, 0)
-        if e.observaciones:
-            ws.cell(r, col_obs, e.observaciones)
-        procesados += 1
 
-    ruta_log = _escribir_log_cmp_custom(entradas, procesados, no_encontrados)
-    return procesados, no_encontrados, ruta_log, wb
+        # Fallback: buscar solo por cédula en la hoja CMP y escribir en columna N
+        r_cmp = indice_cmp.get(e.cedula.strip())
+        if r_cmp is not None and ws_cmp is not None:
+            if e.observaciones:
+                ws_cmp.cell(r_cmp, col_cmp_obs, e.observaciones)
+            procesados_cmp += 1
+            continue
+
+        no_encontrados.append((e.cedula, e.dependencia))
+
+    ruta_log = _escribir_log_cmp_custom(entradas, procesados, no_encontrados, procesados_cmp)
+    return procesados + procesados_cmp, no_encontrados, ruta_log, wb
 
 
 def _hoja_con_cedula(wb):
@@ -198,6 +223,15 @@ def _hoja_con_cedula(wb):
             for c in range(1, min(60, ws.max_column) + 1):
                 if limpiar_texto(ws.cell(r, c).value) == 'CEDULA':
                     return ws
+    return None
+
+
+def _hoja_cmp(wb):
+    """Devuelve la hoja cuyo nombre contenga 'CMP' (o la segunda con CEDULA)."""
+    from readers import limpiar_texto
+    for ws in wb.worksheets:
+        if 'CMP' in limpiar_texto(ws.title):
+            return ws
     return None
 
 
@@ -222,7 +256,7 @@ def _indice_nombre(ws, fila_cabecera, nombre):
     return None
 
 
-def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
+def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados, n_procesados_cmp=0):
     """Escribe un log de texto con el detalle de CMP Custom."""
     from datetime import datetime
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -235,7 +269,9 @@ def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
     lineas.append("LOG CMP CUSTOM")
     lineas.append("=" * 40)
     lineas.append(f"Total ingresadas: {len(entradas)}")
-    lineas.append(f"Procesadas: {n_procesados}")
+    lineas.append(f"Procesadas en ACTIVOS: {n_procesados}")
+    if n_procesados_cmp:
+        lineas.append(f"Procesadas en CMP: {n_procesados_cmp}")
     lineas.append(f"Con error (no encontradas): {len(claves_no)}")
     lineas.append("")
 
@@ -245,7 +281,7 @@ def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
             lineas.append(f"  {e.cedula} | {e.dependencia} | {e.observaciones}")
 
     lineas.append("")
-    lineas.append("--- CÉDULAS CON ERROR (no encontradas en el archivo de nómina) ---")
+    lineas.append("--- CÉDULAS CON ERROR (no encontradas en ACTIVOS ni en CMP) ---")
     for e in entradas:
         if (e.cedula, e.dependencia) in claves_no:
             lineas.append(f"  {e.cedula} | {e.dependencia}")
