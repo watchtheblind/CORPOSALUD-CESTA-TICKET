@@ -132,28 +132,94 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
     return ejecutar_pipeline(reader, ws_retro, CONFIG.campos_retroactivo, ProcesadorRetroactivo, None, 
                              gestor_montos=gestor, anio=anio_actual, iterable=dialogo.resultado)
 
-def coordinar_cmp_custom(ui, reader, wb_plantilla):
-    """Orquesta el procesamiento de CMP Custom sobre la hoja ACTIVOS.
+def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
+    """CMP Custom: modifica SOLO las columnas MONTO (R) y OBSERVACIONES (U)
+    en la hoja ACTIVOS del archivo cargado (que ya viene procesado).
 
-    Genera un log de texto con las cédulas procesadas y las que dieron error.
+    Busca la fila por (cédula, dependencia) en la hoja ACTIVOS del archivo
+    cargado y, sin reescribir nada más, pone monto en 0 y escribe la observación.
+    No guarda: devuelve el workbook editable para que finalizar_proceso lo guarde.
     """
     dialogo = DialogoCMPCustom(ui.root)
 
     if dialogo.cancelado:
-        return 0, [], None
+        return 0, [], None, None
 
-    ws_activos = wb_plantilla[CONFIG.nombres_hojas['activos']]
+    entradas = dialogo.resultado
+    if not entradas:
+        return 0, [], None, None
 
-    if not dialogo.resultado:
-        return 0, [], None
+    from openpyxl import load_workbook
+    wb = load_workbook(ruta_archivo)
+    ws = _hoja_con_cedula(wb)
+    if ws is None:
+        wb.close()
+        raise ValueError("El archivo cargado no tiene una hoja con columna CEDULA.")
 
-    n, no_encontrados = ejecutar_pipeline(
-        reader, ws_activos, CONFIG.campos, ProcesadorCMPCustom, None,
-        iterable=dialogo.resultado,
-    )
+    col_cedula, fila_datos = _localizar_cedula(ws)
+    col_monto = _indice_nombre(ws, fila_datos - 1, 'MONTO')
+    col_obs = _indice_nombre(ws, fila_datos - 1, 'OBSERVACIONES')
+    col_dep = _indice_nombre(ws, fila_datos - 1, 'DEPENDENCIA')
 
-    ruta_log = _escribir_log_cmp_custom(dialogo.resultado, n, no_encontrados)
-    return n, no_encontrados, ruta_log
+    if col_monto is None or col_obs is None:
+        wb.close()
+        raise ValueError("No se encontraron las columnas MONTO y OBSERVACIONES en la hoja ACTIVOS.")
+
+    indice = {}
+    for r in range(fila_datos, ws.max_row + 1):
+        ced = ws.cell(r, col_cedula).value
+        if ced is None or str(ced).strip() == '':
+            break
+        dep = ws.cell(r, col_dep).value if col_dep else None
+        indice[(str(ced).strip(), str(dep or '').strip().upper())] = r
+
+    procesados = 0
+    no_encontrados = []
+    for e in entradas:
+        clave = (e.cedula.strip(), e.dependencia.strip().upper())
+        r = indice.get(clave)
+        if r is None:
+            no_encontrados.append((e.cedula, e.dependencia))
+            continue
+        ws.cell(r, col_monto, 0)
+        if e.observaciones:
+            ws.cell(r, col_obs, e.observaciones)
+        procesados += 1
+
+    ruta_log = _escribir_log_cmp_custom(entradas, procesados, no_encontrados)
+    return procesados, no_encontrados, ruta_log, wb
+
+
+def _hoja_con_cedula(wb):
+    """Devuelve la primera hoja que tenga una cabecera CEDULA, o None."""
+    from readers import limpiar_texto
+    for ws in wb.worksheets:
+        for r in range(1, min(20, ws.max_row) + 1):
+            for c in range(1, min(60, ws.max_column) + 1):
+                if limpiar_texto(ws.cell(r, c).value) == 'CEDULA':
+                    return ws
+    return None
+
+
+def _localizar_cedula(ws):
+    """Devuelve (col de CEDULA, fila de inicio de datos)."""
+    from readers import limpiar_texto
+    for r in range(1, min(20, ws.max_row) + 1):
+        for c in range(1, min(60, ws.max_column) + 1):
+            if limpiar_texto(ws.cell(r, c).value) == 'CEDULA':
+                return c, r + 1
+    raise ValueError("No se encontró la columna CEDULA.")
+
+
+def _indice_nombre(ws, fila_cabecera, nombre):
+    """Devuelve el número de columna cuyo texto contiene el nombre buscado."""
+    from readers import limpiar_texto
+    objetivo = limpiar_texto(nombre)
+    for c in range(1, min(80, ws.max_column) + 1):
+        valor = limpiar_texto(ws.cell(fila_cabecera, c).value)
+        if valor and (valor == objetivo or objetivo in valor):
+            return c
+    return None
 
 
 def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
@@ -190,9 +256,10 @@ def _escribir_log_cmp_custom(entradas, n_procesados, no_encontrados):
     print(f"Log CMP Custom generado: {ruta}")
     return ruta
 
-def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias=None, no_en_cmp=None, ruta_log_cmp=None):
+def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias=None, no_en_cmp=None, ruta_log_cmp=None, wb_cmp=None):
     """Cierra recursos, genera nombre dinámico y guarda."""
-    reader.cerrar()
+    if reader is not None:
+        reader.cerrar()
     
     # Aquí usamos el ProcesadorFechas para el nombre del archivo
     anio, mes_num = ProcesadorFechas.obtener_periodo_actual()
@@ -206,7 +273,11 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, 
         return
 
     try:
-        wb_plantilla.save(nombre_salida)
+        if wb_cmp is not None and (n_activos + n_cmp + n_retro) == 0:
+            wb_cmp.save(nombre_salida)
+            wb_cmp.close()
+        else:
+            wb_plantilla.save(nombre_salida)
         resumen = (f"📊 RESUMEN\nActivos: {n_activos}\nCMP: {n_cmp}\nCMP Custom: {n_cmp_custom}\nRetro: {n_retro}")
         if no_en_cmp:
             resumen += f"\nCMP Custom con error: {len(no_en_cmp)}"
@@ -241,12 +312,20 @@ def main():
         flags = launcher.resultado
 
         gestor = GestorMontos(CONFIG.ruta_montos_retroactivos)
-        monto = obtener_monto_cesta_ticket(ui, gestor)
         ruta = ui.solicitar_archivo()
-        
-        if not monto or not ruta: return
+        if not ruta:
+            return
 
-        reader = ExcelReader(ruta)
+        solo_cmp = flags['cmp_custom'] and not (flags['activos'] or flags['cmp'] or flags['retro'])
+
+        reader = None
+        monto = None
+        if not solo_cmp:
+            monto = obtener_monto_cesta_ticket(ui, gestor)
+            if not monto:
+                return
+            reader = ExcelReader(ruta)
+
         wb_plantilla = load_workbook(CONFIG.plantilla_path)
         fecha_corte = ProcesadorFechas.calcular_fecha_corte()
 
@@ -258,11 +337,11 @@ def main():
             info_desc_dias = procesador_desc.aplicar(wb_plantilla, reader)
 
         n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
-        n_cmp_custom, no_en_cmp, ruta_log_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [], None)
+        n_cmp_custom, no_en_cmp, ruta_log_cmp, wb_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla, ruta) if flags['cmp_custom'] else (0, [], None, None)
         n_retro, no_en_retro = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
 
         no_encontrados = no_en_retro
-        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias, no_en_cmp, ruta_log_cmp)
+        finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias, no_en_cmp, ruta_log_cmp, wb_cmp)
 
     except Exception as e:
         ui.mostrar_error(f"Error crítico: {e}")
