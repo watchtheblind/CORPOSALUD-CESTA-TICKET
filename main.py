@@ -261,7 +261,7 @@ def main():
         n_cmp_custom, no_en_cmp, ruta_log_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla) if flags['cmp_custom'] else (0, [], None)
         n_retro, no_en_retro = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
 
-        no_encontrados = no_en_cmp + no_en_retro
+        no_encontrados = no_en_retro
         finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, n_retro, no_encontrados, info_desc_dias, no_en_cmp, ruta_log_cmp)
 
     except Exception as e:
