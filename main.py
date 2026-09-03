@@ -172,12 +172,15 @@ def finalizar_proceso(reader, wb_plantilla, ui, n_activos, n_cmp, n_cmp_custom, 
 # --- MAIN ---
 
 def main():
+    print("Iniciando aplicación... seleccione los procesadores en la ventana.")
     ui = DialogoUI()
 
     try:
         launcher = LauncherUI(ui.root)
         if launcher.cancelado or not launcher.resultado:
+            print("Proceso cancelado.")
             return
+        print("Procesadores seleccionados:", launcher.resultado)
         flags = launcher.resultado
 
         gestor = GestorMontos(CONFIG.ruta_montos_retroactivos)

@@ -1,7 +1,6 @@
 """Ventana de inicio para seleccionar qué procesadores ejecutar."""
 
 import tkinter as tk
-from tkinter import ttk
 
 
 class LauncherUI:
@@ -13,9 +12,7 @@ class LauncherUI:
 
         self.win = tk.Toplevel(parent)
         self.win.title("Selector de procesadores")
-        self.win.grab_set()
         self.win.resizable(False, False)
-        self.win.transient(parent)
 
         # --- Encabezado ---
         tk.Label(
@@ -29,13 +26,13 @@ class LauncherUI:
         frame.pack(padx=20, pady=5)
 
         self.vars: dict[str, tk.BooleanVar] = {}
-        for clave, texto in [
-            ('activos', 'Activos'),
-            ('cmp', 'CMP'),
-            ('cmp_custom', 'CMP Custom'),
-            ('retro', 'Retroactivos'),
+        for clave, texto, por_defecto in [
+            ('activos', 'Activos', True),
+            ('cmp', 'CMP', False),
+            ('cmp_custom', 'CMP Custom', False),
+            ('retro', 'Retroactivos', False),
         ]:
-            var = tk.BooleanVar(value=False)
+            var = tk.BooleanVar(value=por_defecto)
             tk.Checkbutton(
                 frame, text=texto, variable=var,
                 font=('Segoe UI', 10),
@@ -56,6 +53,14 @@ class LauncherUI:
         ).pack(side='left', padx=5)
 
         self.win.protocol("WM_DELETE_WINDOW", self._cancelar)
+
+        # Forzar que la ventana se muestre y quede al frente,
+        # aunque la raíz padre esté oculta.
+        self.win.update_idletasks()
+        self.win.deiconify()
+        self.win.lift()
+        self.win.focus_force()
+        self.win.grab_set()
         self.win.wait_window()
 
     def _comenzar(self):
