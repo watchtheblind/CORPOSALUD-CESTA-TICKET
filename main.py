@@ -132,13 +132,18 @@ def coordinar_retroactivos(ui, reader, wb_plantilla, gestor):
     return ejecutar_pipeline(reader, ws_retro, CONFIG.campos_retroactivo, ProcesadorRetroactivo, None, 
                              gestor_montos=gestor, anio=anio_actual, iterable=dialogo.resultado)
 
-def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
-    """CMP Custom: modifica SOLO las columnas MONTO (R) y OBSERVACIONES (U)
-    en la hoja ACTIVOS del archivo cargado (que ya viene procesado).
+def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo, usar_plantilla=False):
+    """CMP Custom: pone monto 0 y escribe la observación SOLO en las columnas
+    MONTO y OBSERVACIONES de la hoja ACTIVOS.
 
-    Busca la fila por (cédula, dependencia) en la hoja ACTIVOS del archivo
-    cargado y, sin reescribir nada más, pone monto en 0 y escribe la observación.
-    No guarda: devuelve el workbook editable para que finalizar_proceso lo guarde.
+    usar_plantilla=True  -> trabaja sobre la plantilla en memoria (cuando
+        también se ejecutó Activos). El LIBRO CARGA no necesita traer las
+        columnas MONTO/OBSERVACIONES: esas las crea la plantilla.
+    usar_plantilla=False -> abre el archivo seleccionado, que debe ser un
+        archivo YA PROCESADO (con MONTO y OBSERVACIONES), y lo modifica.
+
+    No guarda: devuelve el workbook editable (o None si usó la plantilla)
+    para que finalizar_proceso lo guarde.
     """
     dialogo = DialogoCMPCustom(ui.root)
 
@@ -149,12 +154,19 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
     if not entradas:
         return 0, [], None, None
 
-    from openpyxl import load_workbook
-    wb = load_workbook(ruta_archivo)
-    ws = _hoja_con_cedula(wb)
-    if ws is None:
-        wb.close()
-        raise ValueError("El archivo cargado no tiene una hoja con columna CEDULA.")
+    if usar_plantilla:
+        wb = wb_plantilla
+        ws = wb[CONFIG.nombres_hojas['activos']]
+    else:
+        from openpyxl import load_workbook
+        wb = load_workbook(ruta_archivo)
+        ws = _hoja_activos(wb)
+        if ws is None:
+            wb.close()
+            raise ValueError(
+                "El archivo seleccionado no tiene una hoja ACTIVOS con columna CEDULA.\n"
+                "Selecciona el archivo YA PROCESADO que genera este programa."
+            )
 
     ws_cmp = _hoja_cmp(wb)
     col_cmp_cedula, fila_cmp_datos = (None, None)
@@ -172,13 +184,34 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
         indice_cmp = {}
 
     col_cedula, fila_datos = _localizar_cedula(ws)
-    col_monto = _indice_nombre(ws, fila_datos - 1, 'MONTO')
-    col_obs = _indice_nombre(ws, fila_datos - 1, 'OBSERVACIONES')
-    col_dep = _indice_nombre(ws, fila_datos - 1, 'DEPENDENCIA')
+
+    # La cabecera normal está justo encima de los datos. Si el archivo trae
+    # cabeceras repartidas en varias filas, buscamos la fila que sí tenga
+    # MONTO y OBSERVACIONES juntas.
+    fila_cabecera = fila_datos - 1
+    col_monto = _indice_nombre(ws, fila_cabecera, 'MONTO')
+    col_obs = _indice_nombre(ws, fila_cabecera, 'OBSERVACIONES')
 
     if col_monto is None or col_obs is None:
-        wb.close()
-        raise ValueError("No se encontraron las columnas MONTO y OBSERVACIONES en la hoja ACTIVOS.")
+        for r in range(1, min(20, ws.max_row) + 1):
+            m = _indice_nombre(ws, r, 'MONTO')
+            o = _indice_nombre(ws, r, 'OBSERVACIONES')
+            if m is not None and o is not None:
+                fila_cabecera, col_monto, col_obs = r, m, o
+                fila_datos = r + 1
+                break
+
+    col_dep = _indice_nombre(ws, fila_cabecera, 'DEPENDENCIA')
+
+    if col_monto is None or col_obs is None:
+        if not usar_plantilla:
+            wb.close()
+        raise ValueError(
+            "No se encontraron las columnas MONTO y OBSERVACIONES en la hoja "
+            f"'{ws.title}'.\n"
+            "Si ejecutaste CMP Custom solo, selecciona el archivo YA PROCESADO "
+            "(el que genera este programa), no el LIBRO CARGA."
+        )
 
     indice = {}
     for r in range(fila_datos, ws.max_row + 1):
@@ -212,7 +245,8 @@ def coordinar_cmp_custom(ui, reader, wb_plantilla, ruta_archivo):
         no_encontrados.append((e.cedula, e.dependencia))
 
     ruta_log = _escribir_log_cmp_custom(entradas, procesados, no_encontrados, procesados_cmp)
-    return procesados + procesados_cmp, no_encontrados, ruta_log, wb
+    # Si trabajamos sobre la plantilla, finalizar_proceso ya guarda wb_plantilla.
+    return procesados + procesados_cmp, no_encontrados, ruta_log, (None if usar_plantilla else wb)
 
 
 def _hoja_con_cedula(wb):
@@ -224,6 +258,39 @@ def _hoja_con_cedula(wb):
                 if limpiar_texto(ws.cell(r, c).value) == 'CEDULA':
                     return ws
     return None
+
+
+def _hoja_activos(wb):
+    """Devuelve la hoja ACTIVOS (la primera que tenga CEDULA + MONTO + OBSERVACIONES).
+
+    No basta con la primera hoja que tenga CEDULA: en un archivo procesado la
+    hoja CMP también tiene CEDULA pero no tiene MONTO ni OBSERVACIONES.
+    """
+    from readers import limpiar_texto
+
+    con_cedula = []
+    for ws in wb.worksheets:
+        for r in range(1, min(20, ws.max_row) + 1):
+            fila = [limpiar_texto(ws.cell(r, c).value) for c in range(1, ws.max_column + 1)]
+            if 'CEDULA' in fila:
+                con_cedula.append(ws)
+                break
+
+    for ws in con_cedula:
+        for r in range(1, min(20, ws.max_row) + 1):
+            fila = [limpiar_texto(ws.cell(r, c).value) for c in range(1, ws.max_column + 1)]
+            if (
+                'CEDULA' in fila
+                and any(v and 'MONTO' in v for v in fila)
+                and any(v and 'OBSERVACIONES' in v for v in fila)
+            ):
+                return ws
+
+    # Fallback: la hoja con el nombre configurado, o la primera con CEDULA.
+    nombre = CONFIG.nombres_hojas.get('activos')
+    if nombre in wb.sheetnames:
+        return wb[nombre]
+    return con_cedula[0] if con_cedula else None
 
 
 def _hoja_cmp(wb):
@@ -249,7 +316,7 @@ def _indice_nombre(ws, fila_cabecera, nombre):
     """Devuelve el número de columna cuyo texto contiene el nombre buscado."""
     from readers import limpiar_texto
     objetivo = limpiar_texto(nombre)
-    for c in range(1, min(80, ws.max_column) + 1):
+    for c in range(1, ws.max_column + 1):
         valor = limpiar_texto(ws.cell(fila_cabecera, c).value)
         if valor and (valor == objetivo or objetivo in valor):
             return c
@@ -373,7 +440,9 @@ def main():
             info_desc_dias = procesador_desc.aplicar(wb_plantilla, reader)
 
         n_cmp = procesar_cmp(reader, wb_plantilla[CONFIG.nombres_hojas['cmp']]) if flags['cmp'] else 0
-        n_cmp_custom, no_en_cmp, ruta_log_cmp, wb_cmp = coordinar_cmp_custom(ui, reader, wb_plantilla, ruta) if flags['cmp_custom'] else (0, [], None, None)
+        n_cmp_custom, no_en_cmp, ruta_log_cmp, wb_cmp = coordinar_cmp_custom(
+            ui, reader, wb_plantilla, ruta, usar_plantilla=bool(flags['activos'])
+        ) if flags['cmp_custom'] else (0, [], None, None)
         n_retro, no_en_retro = coordinar_retroactivos(ui, reader, wb_plantilla, gestor) if flags['retro'] else (0, [])
 
         no_encontrados = no_en_retro
